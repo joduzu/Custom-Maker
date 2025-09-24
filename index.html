@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creador Avanzado de Herramientas de Evaluación HID SCT</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f7f9; padding: 40px; }
+        .maker-container { max-width: 1200px; margin: 0 auto; background: white; box-shadow: 0 0 20px rgba(0, 0, 0, 0.1); border-radius: 12px; padding: 30px; }
+        .maker-header { text-align: center; margin-bottom: 30px; border-bottom: 1px solid #e9ecef; padding-bottom: 20px; }
+        .subsection-item { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px; background: #fafafa; }
+        .subsection-controls { align-self: flex-end; }
+        .weight-input { width: 100px; }
+        .accordion-button:not(.collapsed) { color: #fff; background-color: #0d6efd; }
+        .accordion-button:not(.collapsed)::after { filter: brightness(0) invert(1); }
+        .section-header-controls { display: flex; align-items: center; gap: 15px; }
+        .tox-tinymce { border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="maker-container">
+        <div class="maker-header">
+            <h2>🛠️ Creador de Evaluaciones con Editor Visual</h2>
+            <p class="text-muted">Personaliza títulos, contenido y estándares usando el editor de texto. El HTML generado será 100% funcional.</p>
+        </div>
+
+        <div class="card my-4">
+            <div class="card-header"><h5 class="mb-0">Asignar Pesos de Sección (%)</h5></div>
+            <div class="card-body">
+                <div class="row" id="weights-container"></div>
+                <div class="alert alert-info mt-3" id="weight-sum-alert">Suma total del peso: <span id="weight-sum">0</span>%. Debe ser 100%.</div>
+            </div>
+        </div>
+
+        <div class="accordion" id="sections-accordion"></div>
+
+        <div class="d-grid mt-4">
+            <button class="btn btn-primary btn-lg" id="btn-make"><i class="fas fa-magic me-2"></i>Generar Herramienta HTML Completa</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+    const TOOL_CONFIG = {
+        'info': { title: 'INFO', icon: 'fa-info-circle', hasSubsections: false, weight: 0, enabled: true },
+        'definition': { title: 'DEFINITION', icon: 'fa-book', hasSubsections: false, weight: 0, enabled: true },
+        'org-detail': { title: 'ORGANIZATIONAL DETAIL', icon: 'fa-building', hasSubsections: false, weight: 0, enabled: true },
+        'guiding-principles': { title: 'GUIDING PRINCIPLES', icon: 'fa-star', hasSubsections: true, weight: 2, enabled: true, subsections: ['<strong>Safe Care</strong> - Written statement on behalf the organization', '<strong>Equitable Care</strong> - Written statement on behalf the organization', '<strong>Ethical Care</strong> - Written statement on behalf the organization', '<strong>Accountable Response</strong> - Written statement on behalf the organization', '<strong>Appropriate Response</strong> - Written statement on behalf the organization', '<strong>Coordinated Response</strong> - Written statement on behalf the organization'] },
+        'core-standards': { title: 'CORE STANDARDS', icon: 'fa-cogs', hasSubsections: true, weight: 18, enabled: true, subsections: ['<strong>Administration & Organizational Management</strong>', '<strong>Human Resources</strong>', '<strong>Professional Licensing & Conduct</strong>', '<strong>Training of Teams</strong>', '<strong>Coordination of EMTs</strong>', '<strong>Records and Reporting</strong>'] },
+        'clinical-standards': { 
+            title: 'CLINICAL STANDARDS', icon: 'fa-stethoscope', hasSubsections: true, weight: 20, enabled: true, 
+            subsections: [
+                '<strong>Length of stay</strong> - Minimum length of stay',
+                '<strong>Team size and configuration</strong> - SCTs should be adequately sized and appropriately configured for their tasking, 1 Community Health Worker (CHW) or equivalent per 25 patients',
+                '<strong>Staff skills</strong> - The AWD outpatient team configuration requires staff who are experienced in outbreak context and are IPC trained',
+                '<strong>Staff qualifications and experience</strong> - Staff must be competent in rapid evaluation of all patients, determining the degree of dehydration, implementing the treatment plan, managing oral rehydration, performing patient registration/record keeping, and initiating referral/transfer for cases needing higher levels of care. They must also be experienced in health promotion and providing basic psychosocial support',
+                '<strong>Services Provided</strong> - Capacity (Minimum) 50 outpatients/day. ORP Places 10 ORP places (seats for rehydration under temporary observation). Opening Hours Daylight hours. Modality of Deployment Self-sustained or coupled to an existing health-care facility',
+                '<strong>Screening</strong> - Assess level of dehydration. Assess indications and provide immediate isolation, if indicated. Recognize indications for and initiate referral',
+                '<strong>Triage</strong> - The focus of triage in the outpatient setting is the rapid assessment of disease severity, primarily the level of dehydration. Treatment emphasizes rapid and appropriate rehydration to prevent death.',
+                '<strong>Stabilization</strong> -
