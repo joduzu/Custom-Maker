@@ -244,6 +244,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     let CONFIG = {};
+    let DEPLOYMENT_MODALITIES = null;
     let SECTIONS_WITH_WEIGHT = [];
     let progressChart = null;
     let logoDataUrl = '';
@@ -257,9 +258,115 @@
         summary: {}
     };
 
+    const MODALITY_META = {
+        'embedded': { icon: 'fa-hospital-user', badgeClass: 'bg-primary text-white' },
+        'coupled': { icon: 'fa-link', badgeClass: 'bg-warning text-dark' },
+        'self-sustained': { icon: 'fa-campground', badgeClass: 'bg-success text-white' }
+    };
+
+    function getModalityBadgeHtml(modalities = []) {
+        if (!Array.isArray(modalities) || modalities.length === 0) return '';
+        return `<div class="d-flex flex-wrap gap-2 mt-2">${modalities.map(modality => {
+            const meta = MODALITY_META[modality] || {};
+            const label = DEPLOYMENT_MODALITIES?.[modality]?.label || modality;
+            return `<span class="badge ${meta.badgeClass || 'bg-secondary'}"><i class="fas ${meta.icon || 'fa-circle'} me-1"></i>${label}</span>`;
+        }).join('')}</div>`;
+    }
+
+    function buildModalitiesTab() {
+        if (!DEPLOYMENT_MODALITIES) return '';
+
+        const cardGrid = Object.entries(DEPLOYMENT_MODALITIES).map(([key, data]) => {
+            const meta = MODALITY_META[key] || {};
+            return `
+                <div class="col-lg-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas ${meta.icon || 'fa-circle'} me-2"></i>${data.label}</h5>
+                            <p class="card-text text-muted">${data.description || ''}</p>
+                            <div class="mb-3">
+                                <h6 class="text-uppercase small text-muted">Operational & Logistics</h6>
+                                <p class="small mb-0">${data.operationalSupport || ''}</p>
+                            </div>
+                            <div class="mb-3">
+                                <h6 class="text-uppercase small text-muted">WASH / IPC</h6>
+                                <p class="small mb-0">${data.washConsiderations || ''}</p>
+                            </div>
+                            <div>
+                                <h6 class="text-uppercase small text-muted">Clinical Focus</h6>
+                                <p class="small mb-0">${data.clinicalConsiderations || ''}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        }).join('');
+
+        const sectionRows = Object.entries(CONFIG)
+            .filter(([, section]) => section.enabled)
+            .map(([key, section]) => {
+                const sectionBadges = getModalityBadgeHtml(section.modalities);
+                let detailHtml = '';
+                if (section.hasSubsections && Array.isArray(section.subsections)) {
+                    detailHtml = section.subsections.map(sub => {
+                        const modalities = Array.isArray(sub.modalities) && sub.modalities.length
+                            ? sub.modalities
+                            : (Array.isArray(section.modalities) && section.modalities.length
+                                ? section.modalities
+                                : (DEPLOYMENT_MODALITIES ? Object.keys(DEPLOYMENT_MODALITIES) : []));
+                        const subBadges = getModalityBadgeHtml(modalities);
+                        return `<div class="mb-2"><strong>${sub.title}</strong>${subBadges}</div>`;
+                    }).join('');
+                } else {
+                    detailHtml = '<div class="text-muted small">Applies to entire section content.</div>';
+                }
+
+                return `
+                    <tr>
+                        <td><strong><i class="fas ${section.icon} me-2"></i>${section.title}</strong></td>
+                        <td>${sectionBadges || '<span class="text-muted">Not specified</span>'}</td>
+                        <td>${detailHtml || '<span class="text-muted">No detailed items configured.</span>'}</td>
+                    </tr>`;
+            }).join('');
+
+        return `
+            <div class="tab-pane fade" id="deployment-modalities">
+                <div class="section-card">
+                    <div class="section-header d-flex justify-content-between align-items-center">
+                        <h5>Deployment Modalities Overview</h5>
+                        <div class="score-display">Responsibility Mapping</div>
+                    </div>
+                    <div class="assessment-container">
+                        <div class="row g-4">${cardGrid}</div>
+                    </div>
+                </div>
+                <div class="section-card mt-4">
+                    <div class="section-header d-flex justify-content-between align-items-center">
+                        <h5>Modalities applied to sections</h5>
+                        <div class="score-display">Checklist linkage</div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Section</th>
+                                    <th>Applicable Modalities</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sectionRows || '<tr><td colspan="3" class="text-center text-muted">No sections configured.</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>`;
+    }
+
     // Initialize the application with the provided configuration
     function initializeApp(config) {
-        CONFIG = config;
+        const { deploymentModalities, ...sectionConfig } = config;
+        DEPLOYMENT_MODALITIES = deploymentModalities || null;
+        CONFIG = sectionConfig;
         SECTIONS_WITH_WEIGHT = Object.entries(CONFIG)
             .filter(([, c]) => c.weight > 0)
             .map(([k, c]) => ({ name: c.title, weight: c.weight, section: k }));
@@ -268,6 +375,11 @@
         const tabContent = document.getElementById('tab-content-container');
         let sidebarLinks = '';
         let tabPanes = '';
+
+        if (DEPLOYMENT_MODALITIES) {
+            sidebarLinks += `<li class="nav-item"><a class="nav-link" href="#deployment-modalities" data-bs-toggle="tab"><i class="fas fa-sitemap"></i> Modalities</a></li>`;
+            tabPanes += buildModalitiesTab();
+        }
 
         Object.entries(CONFIG).forEach(([key, configData]) => {
             if (!configData.enabled) return;
@@ -279,7 +391,7 @@
                 const standardItems = configData.subsections.map((sub, index) => {
                     // Handle both string and object formats for subsections
                     let title, description, fullContent;
-                    
+
                     if (typeof sub === 'string') {
                         // String format (like config(5).json)
                         const cleanSub = sub.replace(/<strong>(.*?)<\/strong>/g, '$1');
@@ -297,11 +409,18 @@
                         description = '';
                         fullContent = '';
                     }
-                    
+
                     const subId = title.replace(/<[^>]*>?/gm, '').toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, '-').slice(0, 50);
+                    const subModalities = Array.isArray(sub.modalities) && sub.modalities.length
+                        ? sub.modalities
+                        : (Array.isArray(configData.modalities) && configData.modalities.length
+                            ? configData.modalities
+                            : (DEPLOYMENT_MODALITIES ? Object.keys(DEPLOYMENT_MODALITIES) : []));
+                    const subBadges = getModalityBadgeHtml(subModalities);
 
                     return `<div class="standard-item">
                         <div class="standard-header">${title}</div>
+                        ${subBadges}
                         ${description ? `<div class="standard-description">${description}</div>` : ''}
                         <div class="score-evidence-grid">
                             <div class="score-section">
@@ -347,7 +466,9 @@
                 </div>`;
             } else {
                 // Use content from config or default template
-                content = configData.content || `<div class="alert alert-info">Content for ${configData.title}</div>`;
+                const baseContent = configData.content || `<div class="alert alert-info">Content for ${configData.title}</div>`;
+                const sectionBadges = getModalityBadgeHtml(configData.modalities);
+                content = `${sectionBadges ? `<div class="alert alert-light border mb-3">${sectionBadges}</div>` : ''}${baseContent}`;
             }
 
             tabPanes += `<div class="tab-pane fade" id="${key}">${content}</div>`;
