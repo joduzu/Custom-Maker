@@ -6,6 +6,21 @@ This repository contains three standalone HTML tools:
 - **maker.html** – Configuration maker used to author SCT deployment modality guidance and export `config.json` files.
 - **template.html** – Assessment template that loads exported configurations for review.
 
+ codex/propose-deployment-considerations-for-sct-tools-iyt36w
+## Capturing SCT deployment profiles
+
+`maker.html` now lets you create **SCT Deployment Profiles**. Use the card below the modality guidance grid to:
+
+- Document which deployment modalities (Embedded, Coupled, Self-sustained) a specific SCT can support.
+- Summarize the team’s clinical focus and highlight checklist priorities such as operational support, staffing, WASH/IPCs, and clinical capabilities using the provided readiness fields.
+- Record what the SCT will always provide and what the host facility must guarantee before deployment, along with coordination and contingency notes.
+
+When you export `config.json`, these profiles are saved alongside the modality metadata. Upload the same file in `template.html` to:
+
+- Filter checklist standards by SCT profile and/or individual deployment modality.
+- Review a dedicated **SCT Profiles** tab summarizing responsibilities and readiness considerations drawn from the Comprehensive Facility Readiness Checklist.
+
+ main
 ## Accessing the tools locally
 
 1. Clone or download this repository to your computer.

@@ -39,6 +39,8 @@
         .drag-handle { cursor: move; color: #6c757d; margin-right: 10px; }
         .subsection-title-input { border: none; background: transparent; font-weight: bold; font-size: 1rem; padding: 5px; border-bottom: 1px dashed #ccc; }
         .subsection-title-input:focus { outline: none; border-bottom: 2px solid #667eea; background: white; }
+        .modality-guidance { font-size: 0.85rem; color: #495057; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 10px; padding: 10px 14px; margin-top: 12px; display: flex; align-items: center; gap: 10px; }
+        .modality-guidance .badge { font-size: 0.75rem; }
     </style>
 </head>
 <body>
@@ -62,6 +64,31 @@
             </div>
         </div>
 
+
+      
+        <div class="card my-4 border-0 shadow">
+            <div class="card-header bg-gradient text-white d-flex justify-content-between align-items-center flex-wrap gap-2"
+                 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h5 class="mb-0"><i class="fas fa-people-group me-2"></i>SCT Deployment Profiles</h5>
+                <button class="btn btn-light btn-sm" id="btn-add-profile">
+                    <i class="fas fa-plus me-2"></i>Add SCT Profile
+                </button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">
+                    Document how individual SCTs approach different deployment modalities. Profiles capture the mix of
+                    modalities a team can operate under, highlight checklist priorities (operational support, staffing,
+                    logistics, WASH/IPCs, clinical capabilities) and clarify what the SCT provides versus what the host
+                    facility must guarantee ahead of deployment.
+                </p>
+                <div class="alert alert-info" id="profiles-empty">No SCT profiles configured yet. Use “Add SCT Profile” to
+                    start mapping readiness expectations per team.</div>
+                <div class="row g-4" id="profiles-container"></div>
+            </div>
+        </div>
+
+
+      main
         <div class="action-bar">
             <div class="d-flex gap-2 justify-content-center flex-wrap">
                 <button class="btn btn-outline-primary" id="btn-import-config">
@@ -328,10 +355,26 @@
     <script>
     const ICONS = ['fa-info-circle', 'fa-book', 'fa-building', 'fa-star', 'fa-cogs', 'fa-stethoscope', 'fa-truck', 'fa-hand-holding-water', 'fa-file-alt', 'fa-heart', 'fa-user-md', 'fa-clipboard-check', 'fa-shield-alt', 'fa-ambulance', 'fa-hospital', 'fa-medkit', 'fa-pills', 'fa-syringe', 'fa-microscope', 'fa-flask', 'fa-heartbeat', 'fa-first-aid', 'fa-briefcase-medical'];
 
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
+    const escapeHtml = (unsafe = '') => unsafe
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    const formatMultiline = (text = '') => escapeHtml(text).replace(/\n/g, '<br>');
+
+    const MODALITY_OPTIONS = [
+        { key: 'embedded', label: 'Embedded', icon: 'fa-hospital-user', badgeClass: 'bg-primary' },
+        { key: 'coupled', label: 'Coupled', icon: 'fa-link', badgeClass: 'bg-warning text-dark' },
+        { key: 'self-sustained', label: 'Self-Sustained', icon: 'fa-campground', badgeClass: 'bg-success' }
+
     const MODALITY_OPTIONS = [
         { key: 'embedded', label: 'Embedded', icon: 'fa-hospital-user', badgeClass: 'bg-primary' },
         { key: 'coupled', label: 'Coupled', icon: 'fa-link', badgeClass: 'bg-warning text-dark' },
         { key: 'self-sustained', label: 'Self-sustained', icon: 'fa-campground', badgeClass: 'bg-success' }
+ main
     ];
 
     const DEFAULT_MODALITIES = {
@@ -354,7 +397,11 @@
             hostFacilitySupport: 'List site services and operational enablers that must remain accessible from the host while coupled.'
         },
         'self-sustained': {
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
+            label: 'Self-Sustained',
+
             label: 'Self-sustained',
+main
             description: 'The SCT operates from fully self-sufficient facilities separate from any host infrastructure.',
             operationalSupport: 'The SCT manages all site services including power generation, accommodation, logistics, waste, security and resupply throughout deployment duration.',
             washConsiderations: 'Deploy self-contained water, sanitation and waste systems with surge capacity and stringent IPC controls for high-risk procedures.',
@@ -366,6 +413,188 @@
 
     const DEFAULT_MODALITY_KEYS = MODALITY_OPTIONS.map(option => option.key);
 
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
+    const PROFILE_FIELD_GROUPS = [
+        { key: 'operationalSupport', label: 'Operational Support & Logistics' },
+        { key: 'staffing', label: 'Staffing & Integration' },
+        { key: 'spacesInfrastructure', label: 'Spaces & Structures' },
+        { key: 'suppliesEquipment', label: 'Supplies & Equipment' },
+        { key: 'coordinationCommunication', label: 'Coordination & Communication' },
+        { key: 'safetySecurity', label: 'Safety & Security' },
+        { key: 'clinicalServices', label: 'Medical Services & Capabilities' },
+        { key: 'washIpc', label: 'WASH / IPC' },
+        { key: 'integrationNotes', label: 'Host Facility Agreements & Notes' }
+    ];
+
+    const SECTION_MODALITY_CATEGORY = {
+        'wash-standards': 'wash',
+        'logistic-standards': 'logistics',
+        'clinical-standards': 'clinical'
+    };
+
+    const WASH_DESCRIPTORS = {
+        'embedded': {
+            single: 'Per the Comprehensive Facility Readiness Checklist, the host facility provides core WASH services while the SCT verifies IPC gaps and supports mitigation measures.',
+            short: 'Host provides'
+        },
+        'coupled': {
+            single: 'The Comprehensive Facility Readiness Checklist highlights the need to formalize shared WASH responsibilities with the host, including back-up purification and waste pathways.',
+            short: 'Shared with host; document backups'
+        },
+        'self-sustained': {
+            single: 'The SCT deploys a fully self-sustained WASH package with its own purification, sanitation and waste management capabilities per the readiness checklist.',
+            short: 'SCT provides'
+        }
+    };
+
+    const LOGISTICS_DESCRIPTORS = {
+        'embedded': {
+            single: 'Host facilities cover infrastructure, utilities and baseline logistics; SCT agreements should capture expectations and mitigation strategies from the readiness checklist.',
+            short: 'Host provides baseline support'
+        },
+        'coupled': {
+            single: 'Coordinate with the host for primary provision of logistics while maintaining SCT back-up capabilities as outlined in the readiness checklist.',
+            short: 'Coordinate with host for primary provision but maintain backup capabilities'
+        },
+        'self-sustained': {
+            single: 'The SCT operates an autonomous logistics package—power, accommodation, storage and resupply—aligned with the readiness checklist expectations.',
+            short: 'SCT provides autonomously'
+        }
+    };
+
+    function getModalityLabel(modalityKey) {
+        return MODALITY_OPTIONS.find(opt => opt.key === modalityKey)?.label || modalityKey;
+    }
+
+    function combineSummaries(modalities, descriptorMap) {
+        return modalities
+            .map(mode => {
+                const descriptor = descriptorMap[mode];
+                if (!descriptor) return '';
+                return `${getModalityLabel(mode)}: ${descriptor.short}`;
+            })
+            .filter(Boolean)
+            .join(' | ');
+    }
+
+    function buildGuidance(category, modalities = []) {
+        const uniqueModalities = Array.from(new Set((Array.isArray(modalities) ? modalities : []).filter(Boolean)));
+        uniqueModalities.sort((a, b) => {
+            const orderA = DEFAULT_MODALITY_KEYS.indexOf(a);
+            const orderB = DEFAULT_MODALITY_KEYS.indexOf(b);
+            return (orderA === -1 ? Number.MAX_SAFE_INTEGER : orderA) - (orderB === -1 ? Number.MAX_SAFE_INTEGER : orderB);
+        });
+        if (!uniqueModalities.length) {
+            return {
+                badge: 'Modalities Pending',
+                badgeClass: 'bg-secondary',
+                context: 'Selecciona modalidades para conectar responsabilidades del SCT y del establecimiento anfitrión según el Checklist Integral de Preparación de Instalaciones.'
+            };
+        }
+
+        if (category === 'wash') {
+            if (uniqueModalities.length === 1) {
+                const mode = uniqueModalities[0];
+                const descriptor = WASH_DESCRIPTORS[mode];
+                return {
+                    badge: mode === 'embedded' ? 'Host Supported' : mode === 'coupled' ? 'Shared Systems' : 'SCT Self-Sufficient',
+                    badgeClass: mode === 'embedded' ? 'bg-primary' : mode === 'coupled' ? 'bg-warning text-dark' : 'bg-success',
+                    context: descriptor?.single || 'Aplica el Checklist Integral de Preparación de Instalaciones para detallar la responsabilidad WASH.'
+                };
+            }
+            return {
+                badge: 'Mode-Dependent',
+                badgeClass: 'bg-info text-dark',
+                context: combineSummaries(uniqueModalities, WASH_DESCRIPTORS)
+            };
+        }
+
+        if (category === 'logistics') {
+            if (uniqueModalities.length === 1) {
+                const mode = uniqueModalities[0];
+                const descriptor = LOGISTICS_DESCRIPTORS[mode];
+                if (mode === 'coupled') {
+                    return {
+                        badge: 'Coordination Required',
+                        badgeClass: 'bg-warning text-dark',
+                        context: descriptor?.single || 'Coordinate with host for primary provision but maintain backup capabilities.'
+                    };
+                }
+                if (mode === 'self-sustained') {
+                    return {
+                        badge: 'Autonomous Logistics',
+                        badgeClass: 'bg-success',
+                        context: descriptor?.single || 'La logística recae íntegramente en el SCT.'
+                    };
+                }
+                return {
+                    badge: 'Host Supported',
+                    badgeClass: 'bg-primary',
+                    context: descriptor?.single || 'El establecimiento anfitrión lidera la logística base.'
+                };
+            }
+
+            const includesCoupled = uniqueModalities.includes('coupled');
+            const includesEmbedded = uniqueModalities.includes('embedded');
+            const includesSelf = uniqueModalities.includes('self-sustained');
+
+            let badge = 'Hybrid Support Plan';
+            if (includesCoupled && includesEmbedded && !includesSelf) badge = 'Shared Logistics Plan';
+            else if (includesCoupled && includesSelf && !includesEmbedded) badge = 'Layered Logistics';
+            else if (includesEmbedded && includesSelf && !includesCoupled) badge = 'Mode-Dependent';
+            else if (includesCoupled && includesEmbedded && includesSelf) badge = 'Mode-Dependent';
+
+            return {
+                badge,
+                badgeClass: 'bg-info text-dark',
+                context: combineSummaries(uniqueModalities, LOGISTICS_DESCRIPTORS)
+            };
+        }
+
+        if (category === 'clinical') {
+            return {
+                badge: 'SCT Responsibility',
+                badgeClass: 'bg-success',
+                context: 'This standard is always the responsibility of the SCT.'
+            };
+        }
+
+        return {
+            badge: 'Contextual Planning',
+            badgeClass: 'bg-secondary',
+            context: 'Utiliza el Checklist Integral de Preparación de Instalaciones para aclarar responsabilidades compartidas.'
+        };
+    }
+
+    function updateDeploymentModeUI(targetElement = null) {
+        const elements = targetElement ? [targetElement] : Array.from(document.querySelectorAll('.modality-guidance'));
+        elements.forEach(element => {
+            if (!element) return;
+            const sectionKey = element.dataset.section;
+            const scope = element.dataset.scope;
+            let modalities = [];
+
+            if (scope === 'section') {
+                modalities = TOOL_CONFIG[sectionKey]?.modalities || [];
+            } else {
+                const parentItem = element.closest('.subsection-item');
+                const container = parentItem?.parentElement;
+                let itemIndex = -1;
+                if (container && parentItem) {
+                    itemIndex = Array.from(container.children).indexOf(parentItem);
+                }
+                if (itemIndex >= 0) {
+                    modalities = TOOL_CONFIG[sectionKey]?.subsections?.[itemIndex]?.modalities || [];
+                }
+            }
+
+            const guidance = buildGuidance(SECTION_MODALITY_CATEGORY[sectionKey], modalities);
+            element.innerHTML = `<span class="badge ${guidance.badgeClass}">${guidance.badge}</span><span>${guidance.context}</span>`;
+        });
+    }
+
+
+main
     const deepClone = (value) => JSON.parse(JSON.stringify(value));
 
     const normalizeDeploymentModalities = (modalities = {}) => {
@@ -393,6 +622,63 @@
     };
 
     let DEPLOYMENT_MODALITIES = normalizeDeploymentModalities();
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
+    const createEmptyProfile = () => {
+        const readiness = {};
+        PROFILE_FIELD_GROUPS.forEach(field => {
+            readiness[field.key] = '';
+        });
+        return {
+            id: `profile-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            name: '',
+            summary: '',
+            modalities: [...DEFAULT_MODALITY_KEYS],
+            readiness,
+            sctDeliverables: '',
+            hostExpectations: '',
+            coordinationNotes: ''
+        };
+    };
+
+    const normalizeProfile = (profile = {}) => {
+        const base = createEmptyProfile();
+        return {
+            ...base,
+            ...profile,
+            id: profile.id || base.id,
+            summary: profile.summary || '',
+            modalities: Array.isArray(profile.modalities) && profile.modalities.length
+                ? [...new Set(profile.modalities)]
+                : [...DEFAULT_MODALITY_KEYS],
+            readiness: {
+                ...base.readiness,
+                ...(profile.readiness || {})
+            },
+            sctDeliverables: profile.sctDeliverables || '',
+            hostExpectations: profile.hostExpectations || '',
+            coordinationNotes: profile.coordinationNotes || ''
+        };
+    };
+
+    let SCT_PROFILES = [normalizeProfile({
+        name: 'Perfil base SCT HID',
+        summary: 'Referencia inicial para SCTs que pueden operar como Embedded, Coupled o Self-sustained. Ajusta según la especialidad clínica y el contexto operativo.',
+        readiness: {
+            operationalSupport: 'Embedded: validar suministro de servicios básicos del anfitrión. Coupled: acordar responsabilidades compartidas (energía, residuos, movilidad). Self-sustained: planificar generación y soporte autónomo.',
+            staffing: 'Alinear roles y procesos de inducción con el anfitrión para modalidades Embedded/Coupled. Mantener rotaciones completas y capacidades críticas propias para Self-sustained.',
+            spacesInfrastructure: 'Embedded: confirmar que los espacios cumplen requisitos clínicos y de bioseguridad. Coupled: preparar estructuras modulares compatibles con el sitio. Self-sustained: desplegar infraestructura autónoma adaptable.',
+            suppliesEquipment: 'Mantener cadena de suministros propia en todas las modalidades. Integrar reposición con el anfitrión cuando sea viable (Embedded/Coupled) y planificar stock ampliado para Self-sustained.',
+            coordinationCommunication: 'Establecer canales de coordinación diaria con el anfitrión y mecanismos de reporte al EMTCC. Garantizar redundancia de comunicaciones para entornos Self-sustained.',
+            safetySecurity: 'Codiseñar planes de seguridad y evacuación con el anfitrión. Para despliegues autónomos, incluir perímetro propio y protocolos de respuesta rápida.',
+            clinicalServices: 'Definir alcance clínico, rutas de referencia y criterios de admisión por modalidad. Incorporar planes de contingencia para diagnósticos, farmacia e imagenología.',
+            washIpc: 'Aplicar el Checklist integral para acordar responsabilidades WASH. Proveer capacidades autónomas de tratamiento y residuos cuando sea necesario.',
+            integrationNotes: 'Utilizar la lista de verificación de integración EMT-SCT para documentar acuerdos previos, riesgos y mitigaciones.'
+        },
+        sctDeliverables: 'Equipo clínico especializado completo, suministros críticos, SOPs para transición de turnos, infraestructura modular y capacidades de laboratorio/diagnóstico requeridas.',
+        hostExpectations: 'Clarificar disponibilidad de servicios esenciales (energía, agua, oxígeno), acceso a rutas de referencia, seguridad en sitio y coordinación administrativa antes de desplegar.',
+        coordinationNotes: 'Aplicar revisiones periódicas con el anfitrión y el EMTCC para ajustar soportes compartidos y gestionar contingencias de suministros o personal.'
+    })];
+ main
     let hasDocumentInputListener = false;
     let hasModalityChangeListener = false;
 
@@ -463,6 +749,79 @@
         });
     }
 
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
+    function renderProfilesUI() {
+        const container = document.getElementById('profiles-container');
+        const emptyState = document.getElementById('profiles-empty');
+        if (!container) return;
+
+        if (!Array.isArray(SCT_PROFILES) || SCT_PROFILES.length === 0) {
+            container.innerHTML = '';
+            if (emptyState) emptyState.classList.remove('d-none');
+            return;
+        }
+
+        if (emptyState) emptyState.classList.add('d-none');
+
+        container.innerHTML = SCT_PROFILES.map(profile => {
+            const readinessFields = PROFILE_FIELD_GROUPS.map(group => `
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">${group.label}</label>
+                    <textarea class="form-control profile-readiness-field" rows="3" data-profile="${profile.id}" data-field="${group.key}" placeholder="Describe ${group.label.toLowerCase()}">${escapeHtml(profile.readiness?.[group.key] || '')}</textarea>
+                </div>
+            `).join('');
+
+            const modalityBadges = MODALITY_OPTIONS.map(option => `
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input profile-modality-toggle" type="checkbox" data-profile="${profile.id}" data-modality="${option.key}" ${profile.modalities?.includes(option.key) ? 'checked' : ''}>
+                    <label class="form-check-label small"><span class="badge ${option.badgeClass} me-1"><i class="fas ${option.icon}"></i></span>${option.label}</label>
+                </div>
+            `).join('');
+
+            return `
+                <div class="col-12">
+                    <div class="border rounded-4 p-4 shadow-sm">
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                            <div class="flex-grow-1">
+                                <label class="form-label fw-semibold">Profile name</label>
+                                <input type="text" class="form-control profile-name-input" data-profile="${profile.id}" value="${escapeHtml(profile.name || '')}" placeholder="e.g. HID SCT - Critical Care">
+                            </div>
+                            <div class="text-end">
+                                <button class="btn btn-sm btn-outline-secondary me-2 profile-action" data-action="duplicate" data-profile="${profile.id}"><i class="fas fa-copy me-1"></i>Duplicate</button>
+                                <button class="btn btn-sm btn-outline-danger profile-action" data-action="remove" data-profile="${profile.id}"><i class="fas fa-trash me-1"></i>Remove</button>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label fw-semibold">Summary / clinical focus</label>
+                            <textarea class="form-control profile-summary-input" rows="2" data-profile="${profile.id}" placeholder="What services does this SCT provide and in which contexts?">${escapeHtml(profile.summary || '')}</textarea>
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label fw-semibold">Supported deployment modalities</label>
+                            <div class="d-flex flex-wrap gap-3">${modalityBadges}</div>
+                            <div class="form-text">Desmarca modalidades no disponibles para esta SCT.</div>
+                        </div>
+                        <div class="row g-3 mt-3">${readinessFields}</div>
+                        <div class="row g-3 mt-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">SCT delivers / brings</label>
+                                <textarea class="form-control profile-sct-field" rows="3" data-profile="${profile.id}" placeholder="Equipos, personal y servicios garantizados por la SCT">${escapeHtml(profile.sctDeliverables || '')}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Host facility must ensure</label>
+                                <textarea class="form-control profile-host-field" rows="3" data-profile="${profile.id}" placeholder="Infraestructura, suministros o soporte que exige la SCT">${escapeHtml(profile.hostExpectations || '')}</textarea>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label fw-semibold">Coordination notes & contingencies</label>
+                            <textarea class="form-control profile-coordination-field" rows="2" data-profile="${profile.id}" placeholder="Protocolos de coordinación, escalamiento y mitigaciones">${escapeHtml(profile.coordinationNotes || '')}</textarea>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+ main
     function renderModalityCheckboxes(sectionKey, selectedModalities = DEFAULT_MODALITY_KEYS, scope = 'subsection', uniqueSuffix = '') {
         const selected = Array.isArray(selectedModalities) && selectedModalities.length ? selectedModalities : DEFAULT_MODALITY_KEYS;
         return `
@@ -479,6 +838,9 @@
                             </div>`;
                     }).join('')}
                 </div>
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
+                <div class="modality-guidance" data-section="${sectionKey}" data-scope="${scope}" data-index="${uniqueSuffix}"></div>
+ main
             </div>
         `;
     }
@@ -503,9 +865,49 @@
                 DEPLOYMENT_MODALITIES[modalityKey][field] = e.target.value;
             }
         }
+
+
+        if (e.target.dataset.profile) {
+            const profileId = e.target.dataset.profile;
+            const profile = SCT_PROFILES.find(p => p.id === profileId);
+            if (!profile) return;
+
+            if (e.target.classList.contains('profile-name-input')) {
+                profile.name = e.target.value;
+            } else if (e.target.classList.contains('profile-summary-input')) {
+                profile.summary = e.target.value;
+            } else if (e.target.classList.contains('profile-readiness-field')) {
+                const fieldKey = e.target.dataset.field;
+                if (!profile.readiness) profile.readiness = {};
+                profile.readiness[fieldKey] = e.target.value;
+            } else if (e.target.classList.contains('profile-sct-field')) {
+                profile.sctDeliverables = e.target.value;
+            } else if (e.target.classList.contains('profile-host-field')) {
+                profile.hostExpectations = e.target.value;
+            } else if (e.target.classList.contains('profile-coordination-field')) {
+                profile.coordinationNotes = e.target.value;
+            }
+        }
     }
 
     function handleModalityCheckboxChange(e) {
+        if (e.target.classList.contains('profile-modality-toggle')) {
+            const profileId = e.target.dataset.profile;
+            const modality = e.target.dataset.modality;
+            const profile = SCT_PROFILES.find(p => p.id === profileId);
+            if (!profile || !modality) return;
+            if (!Array.isArray(profile.modalities)) profile.modalities = [];
+            if (e.target.checked) {
+                if (!profile.modalities.includes(modality)) profile.modalities.push(modality);
+            } else {
+                profile.modalities = profile.modalities.filter(m => m !== modality);
+            }
+            return;
+        }
+    }
+
+    function handleModalityCheckboxChange(e) {
+ main
         if (!e.target.classList.contains('modality-checkbox')) return;
 
         const section = e.target.dataset.section;
@@ -524,6 +926,10 @@
             } else {
                 subsection.modalities = subsection.modalities.filter(m => m !== modality);
             }
+
+            const guidanceElement = parentSubsection.querySelector('.modality-guidance');
+            if (guidanceElement) updateDeploymentModeUI(guidanceElement);
+main
         } else {
             const configSection = TOOL_CONFIG[section];
             if (!configSection) return;
@@ -533,7 +939,41 @@
             } else {
                 configSection.modalities = configSection.modalities.filter(m => m !== modality);
             }
+
+            const sectionGuidance = document.querySelector(`.modality-guidance[data-section="${section}"][data-scope="section"]`);
+            if (sectionGuidance) updateDeploymentModeUI(sectionGuidance);
         }
+    }
+
+    function handleProfileAction(e) {
+        const action = e.currentTarget.dataset.action;
+        const profileId = e.currentTarget.dataset.profile;
+        if (!action || !profileId) return;
+        const index = SCT_PROFILES.findIndex(profile => profile.id === profileId);
+        if (index === -1) return;
+
+        if (action === 'remove') {
+            SCT_PROFILES.splice(index, 1);
+        } else if (action === 'duplicate') {
+            const source = SCT_PROFILES[index];
+            const clone = normalizeProfile({
+                ...deepClone(source),
+                id: null,
+                name: `${source.name || 'SCT Profile'} (copy)`
+            });
+            SCT_PROFILES.splice(index + 1, 0, clone);
+        }
+
+        renderProfilesUI();
+        addEventListeners();
+    }
+
+    function addNewProfile() {
+        SCT_PROFILES.push(createEmptyProfile());
+        renderProfilesUI();
+        addEventListeners();
+        }
+ main
     }
 
     function getModalityBadgeHtml(modalities = []) {
@@ -581,6 +1021,47 @@
         `;
     }
 
+
+    function renderProfilesPreview() {
+        if (!Array.isArray(SCT_PROFILES) || SCT_PROFILES.length === 0) return '';
+
+        const profilesHtml = SCT_PROFILES.map(profile => {
+            const modalities = getModalityBadgeHtml(profile.modalities);
+            const readinessList = PROFILE_FIELD_GROUPS
+                .filter(group => (profile.readiness?.[group.key] || '').trim().length)
+                .map(group => `<li><strong>${group.label}:</strong> ${formatMultiline(profile.readiness?.[group.key] || '')}</li>`)
+                .join('');
+
+            return `
+                <div class="col-md-6">
+                    <div class="h-100 border rounded p-3">
+                        <h6 class="fw-semibold"><i class="fas fa-user-md me-2"></i>${escapeHtml(profile.name || 'Unnamed Profile')}</h6>
+                        ${profile.summary ? `<p class="text-muted small mb-2">${formatMultiline(profile.summary)}</p>` : ''}
+                        ${modalities}
+                        ${readinessList ? `<ul class="small ps-3 mt-3 mb-3">${readinessList}</ul>` : ''}
+                        <div class="small">
+                            <p class="mb-1"><strong>SCT delivers:</strong> ${formatMultiline(profile.sctDeliverables || 'Sin definir')}</p>
+                            <p class="mb-1"><strong>Host ensures:</strong> ${formatMultiline(profile.hostExpectations || 'Sin definir')}</p>
+                            ${profile.coordinationNotes ? `<p class="mb-0"><strong>Coordinación:</strong> ${formatMultiline(profile.coordinationNotes)}</p>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-people-group me-2"></i>SCT Deployment Profiles</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">${profilesHtml}</div>
+                </div>
+            </div>
+        `;
+    }
+
+main
     let TOOL_CONFIG = {
         'info': { 
             title: 'INFO', 
@@ -887,7 +1368,12 @@
     function renderMakerUI() {
         DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(DEPLOYMENT_MODALITIES);
         ensureModalitiesStructure(TOOL_CONFIG);
+
+        SCT_PROFILES = Array.isArray(SCT_PROFILES) ? SCT_PROFILES.map(normalizeProfile) : [];
         renderModalitiesUI();
+        renderProfilesUI();
+        renderModalitiesUI();
+ main
         const sectionsContainer = document.getElementById('sections-accordion');
         const weightsContainer = document.getElementById('weights-container');
         sectionsContainer.innerHTML = '';
@@ -995,6 +1481,7 @@
         setTimeout(() => initEditors(), 100);
         updateWeightSum();
         addEventListeners();
+        updateDeploymentModeUI();
     }
 
     function initEditors(selector = 'textarea') {
@@ -1018,6 +1505,13 @@
             document.addEventListener('change', handleModalityCheckboxChange);
             hasModalityChangeListener = true;
         }
+
+
+        const addProfileBtn = document.getElementById('btn-add-profile');
+        if (addProfileBtn) addProfileBtn.onclick = addNewProfile;
+
+        document.querySelectorAll('.profile-action').forEach(btn => btn.onclick = handleProfileAction);
+ main
 
         document.querySelectorAll('.add-item').forEach(btn => btn.onclick = e => {
             const section = e.currentTarget.dataset.section;
@@ -1049,6 +1543,8 @@
                 content: "<strong>New Standard</strong> - Description",
                 modalities: [...DEFAULT_MODALITY_KEYS]
             });
+
+            updateDeploymentModeUI(newItem.querySelector('.modality-guidance'));
             
             newItem.querySelector('.remove-item').onclick = () => {
                 const itemIndex = Array.from(container.children).indexOf(newItem);
@@ -1077,13 +1573,15 @@
                     content: content,
                     modalities: originalSubsection?.modalities ? [...originalSubsection.modalities] : [...DEFAULT_MODALITY_KEYS]
                 });
-                
+
                 initEditors(`#editor-${section}-${dupIndex}`);
                 setTimeout(() => {
                     tinymce.get(`editor-${section}-${dupIndex}`).setContent(content);
                     dupItem.querySelector('.subsection-title-input').value = title + " (Copy)";
                     document.getElementById(`subsection-title-${section}-${dupIndex}`).textContent = title + " (Copy)";
                 }, 200);
+
+                updateDeploymentModeUI(dupItem.querySelector('.modality-guidance'));
             };
 
             initEditors(`#editor-${section}-${newIndex}`);
@@ -1142,6 +1640,9 @@
 
     function saveConfigFile() {
         DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(DEPLOYMENT_MODALITIES);
+
+        SCT_PROFILES = Array.isArray(SCT_PROFILES) ? SCT_PROFILES.map(normalizeProfile) : [];
+ main
         const finalConfig = {};
         document.querySelectorAll('.section-title-input').forEach(input => {
             const key = input.dataset.key;
@@ -1183,6 +1684,8 @@
         });
 
         finalConfig.deploymentModalities = deepClone(DEPLOYMENT_MODALITIES);
+        finalConfig.sctProfiles = deepClone(SCT_PROFILES);
+ main
 
         const blob = new Blob([JSON.stringify(finalConfig, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1207,6 +1710,8 @@
         const preview = document.getElementById('preview-content');
         preview.innerHTML = '<h3>Configuration Preview</h3>';
         preview.innerHTML += renderModalitiesPreview();
+        preview.innerHTML += renderProfilesPreview();
+ main
 
         Object.entries(TOOL_CONFIG).forEach(([key, config]) => {
             if(!config.enabled) return;
@@ -1254,11 +1759,20 @@
         reader.onload = (evt) => {
             try {
                 const importedConfig = JSON.parse(evt.target.result);
+
+                const { deploymentModalities, sctProfiles, ...sections } = importedConfig;
+                if (deploymentModalities) {
+                    DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(deploymentModalities);
+                }
+                SCT_PROFILES = Array.isArray(sctProfiles) ? sctProfiles.map(normalizeProfile) : [];
+                TOOL_CONFIG = sections;
+
                 if (importedConfig.deploymentModalities) {
                     DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(importedConfig.deploymentModalities);
                     delete importedConfig.deploymentModalities;
                 }
                 TOOL_CONFIG = importedConfig;
+  main
                 renderMakerUI();
                 alert('Configuration imported successfully!');
             } catch(err) {
