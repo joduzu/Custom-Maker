@@ -64,6 +64,8 @@
             </div>
         </div>
 
+
+      
         <div class="card my-4 border-0 shadow">
             <div class="card-header bg-gradient text-white d-flex justify-content-between align-items-center flex-wrap gap-2"
                  style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
@@ -85,6 +87,8 @@
             </div>
         </div>
 
+
+      main
         <div class="action-bar">
             <div class="d-flex gap-2 justify-content-center flex-wrap">
                 <button class="btn btn-outline-primary" id="btn-import-config">
@@ -351,6 +355,7 @@
     <script>
     const ICONS = ['fa-info-circle', 'fa-book', 'fa-building', 'fa-star', 'fa-cogs', 'fa-stethoscope', 'fa-truck', 'fa-hand-holding-water', 'fa-file-alt', 'fa-heart', 'fa-user-md', 'fa-clipboard-check', 'fa-shield-alt', 'fa-ambulance', 'fa-hospital', 'fa-medkit', 'fa-pills', 'fa-syringe', 'fa-microscope', 'fa-flask', 'fa-heartbeat', 'fa-first-aid', 'fa-briefcase-medical'];
 
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
     const escapeHtml = (unsafe = '') => unsafe
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -364,6 +369,12 @@
         { key: 'embedded', label: 'Embedded', icon: 'fa-hospital-user', badgeClass: 'bg-primary' },
         { key: 'coupled', label: 'Coupled', icon: 'fa-link', badgeClass: 'bg-warning text-dark' },
         { key: 'self-sustained', label: 'Self-Sustained', icon: 'fa-campground', badgeClass: 'bg-success' }
+
+    const MODALITY_OPTIONS = [
+        { key: 'embedded', label: 'Embedded', icon: 'fa-hospital-user', badgeClass: 'bg-primary' },
+        { key: 'coupled', label: 'Coupled', icon: 'fa-link', badgeClass: 'bg-warning text-dark' },
+        { key: 'self-sustained', label: 'Self-sustained', icon: 'fa-campground', badgeClass: 'bg-success' }
+ main
     ];
 
     const DEFAULT_MODALITIES = {
@@ -386,7 +397,11 @@
             hostFacilitySupport: 'List site services and operational enablers that must remain accessible from the host while coupled.'
         },
         'self-sustained': {
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
             label: 'Self-Sustained',
+
+            label: 'Self-sustained',
+main
             description: 'The SCT operates from fully self-sufficient facilities separate from any host infrastructure.',
             operationalSupport: 'The SCT manages all site services including power generation, accommodation, logistics, waste, security and resupply throughout deployment duration.',
             washConsiderations: 'Deploy self-contained water, sanitation and waste systems with surge capacity and stringent IPC controls for high-risk procedures.',
@@ -398,6 +413,7 @@
 
     const DEFAULT_MODALITY_KEYS = MODALITY_OPTIONS.map(option => option.key);
 
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
     const PROFILE_FIELD_GROUPS = [
         { key: 'operationalSupport', label: 'Operational Support & Logistics' },
         { key: 'staffing', label: 'Staffing & Integration' },
@@ -577,6 +593,8 @@
         });
     }
 
+
+main
     const deepClone = (value) => JSON.parse(JSON.stringify(value));
 
     const normalizeDeploymentModalities = (modalities = {}) => {
@@ -604,6 +622,7 @@
     };
 
     let DEPLOYMENT_MODALITIES = normalizeDeploymentModalities();
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
     const createEmptyProfile = () => {
         const readiness = {};
         PROFILE_FIELD_GROUPS.forEach(field => {
@@ -659,6 +678,7 @@
         hostExpectations: 'Clarificar disponibilidad de servicios esenciales (energía, agua, oxígeno), acceso a rutas de referencia, seguridad en sitio y coordinación administrativa antes de desplegar.',
         coordinationNotes: 'Aplicar revisiones periódicas con el anfitrión y el EMTCC para ajustar soportes compartidos y gestionar contingencias de suministros o personal.'
     })];
+ main
     let hasDocumentInputListener = false;
     let hasModalityChangeListener = false;
 
@@ -729,6 +749,7 @@
         });
     }
 
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
     function renderProfilesUI() {
         const container = document.getElementById('profiles-container');
         const emptyState = document.getElementById('profiles-empty');
@@ -800,6 +821,7 @@
         }).join('');
     }
 
+ main
     function renderModalityCheckboxes(sectionKey, selectedModalities = DEFAULT_MODALITY_KEYS, scope = 'subsection', uniqueSuffix = '') {
         const selected = Array.isArray(selectedModalities) && selectedModalities.length ? selectedModalities : DEFAULT_MODALITY_KEYS;
         return `
@@ -816,7 +838,9 @@
                             </div>`;
                     }).join('')}
                 </div>
+codex/propose-deployment-considerations-for-sct-tools-iyt36w
                 <div class="modality-guidance" data-section="${sectionKey}" data-scope="${scope}" data-index="${uniqueSuffix}"></div>
+ main
             </div>
         `;
     }
@@ -841,6 +865,7 @@
                 DEPLOYMENT_MODALITIES[modalityKey][field] = e.target.value;
             }
         }
+
 
         if (e.target.dataset.profile) {
             const profileId = e.target.dataset.profile;
@@ -879,7 +904,10 @@
             }
             return;
         }
+    }
 
+    function handleModalityCheckboxChange(e) {
+ main
         if (!e.target.classList.contains('modality-checkbox')) return;
 
         const section = e.target.dataset.section;
@@ -898,8 +926,10 @@
             } else {
                 subsection.modalities = subsection.modalities.filter(m => m !== modality);
             }
+
             const guidanceElement = parentSubsection.querySelector('.modality-guidance');
             if (guidanceElement) updateDeploymentModeUI(guidanceElement);
+main
         } else {
             const configSection = TOOL_CONFIG[section];
             if (!configSection) return;
@@ -909,6 +939,7 @@
             } else {
                 configSection.modalities = configSection.modalities.filter(m => m !== modality);
             }
+
             const sectionGuidance = document.querySelector(`.modality-guidance[data-section="${section}"][data-scope="section"]`);
             if (sectionGuidance) updateDeploymentModeUI(sectionGuidance);
         }
@@ -941,6 +972,8 @@
         SCT_PROFILES.push(createEmptyProfile());
         renderProfilesUI();
         addEventListeners();
+        }
+ main
     }
 
     function getModalityBadgeHtml(modalities = []) {
@@ -988,6 +1021,7 @@
         `;
     }
 
+
     function renderProfilesPreview() {
         if (!Array.isArray(SCT_PROFILES) || SCT_PROFILES.length === 0) return '';
 
@@ -1027,6 +1061,7 @@
         `;
     }
 
+main
     let TOOL_CONFIG = {
         'info': { 
             title: 'INFO', 
@@ -1333,9 +1368,12 @@
     function renderMakerUI() {
         DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(DEPLOYMENT_MODALITIES);
         ensureModalitiesStructure(TOOL_CONFIG);
+
         SCT_PROFILES = Array.isArray(SCT_PROFILES) ? SCT_PROFILES.map(normalizeProfile) : [];
         renderModalitiesUI();
         renderProfilesUI();
+        renderModalitiesUI();
+ main
         const sectionsContainer = document.getElementById('sections-accordion');
         const weightsContainer = document.getElementById('weights-container');
         sectionsContainer.innerHTML = '';
@@ -1468,10 +1506,12 @@
             hasModalityChangeListener = true;
         }
 
+
         const addProfileBtn = document.getElementById('btn-add-profile');
         if (addProfileBtn) addProfileBtn.onclick = addNewProfile;
 
         document.querySelectorAll('.profile-action').forEach(btn => btn.onclick = handleProfileAction);
+ main
 
         document.querySelectorAll('.add-item').forEach(btn => btn.onclick = e => {
             const section = e.currentTarget.dataset.section;
@@ -1600,7 +1640,9 @@
 
     function saveConfigFile() {
         DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(DEPLOYMENT_MODALITIES);
+
         SCT_PROFILES = Array.isArray(SCT_PROFILES) ? SCT_PROFILES.map(normalizeProfile) : [];
+ main
         const finalConfig = {};
         document.querySelectorAll('.section-title-input').forEach(input => {
             const key = input.dataset.key;
@@ -1643,6 +1685,7 @@
 
         finalConfig.deploymentModalities = deepClone(DEPLOYMENT_MODALITIES);
         finalConfig.sctProfiles = deepClone(SCT_PROFILES);
+ main
 
         const blob = new Blob([JSON.stringify(finalConfig, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -1668,6 +1711,7 @@
         preview.innerHTML = '<h3>Configuration Preview</h3>';
         preview.innerHTML += renderModalitiesPreview();
         preview.innerHTML += renderProfilesPreview();
+ main
 
         Object.entries(TOOL_CONFIG).forEach(([key, config]) => {
             if(!config.enabled) return;
@@ -1715,12 +1759,20 @@
         reader.onload = (evt) => {
             try {
                 const importedConfig = JSON.parse(evt.target.result);
+
                 const { deploymentModalities, sctProfiles, ...sections } = importedConfig;
                 if (deploymentModalities) {
                     DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(deploymentModalities);
                 }
                 SCT_PROFILES = Array.isArray(sctProfiles) ? sctProfiles.map(normalizeProfile) : [];
                 TOOL_CONFIG = sections;
+
+                if (importedConfig.deploymentModalities) {
+                    DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(importedConfig.deploymentModalities);
+                    delete importedConfig.deploymentModalities;
+                }
+                TOOL_CONFIG = importedConfig;
+  main
                 renderMakerUI();
                 alert('Configuration imported successfully!');
             } catch(err) {
