@@ -33,6 +33,9 @@
         .btn-gradient { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; }
         .btn-gradient:hover { background: linear-gradient(135deg, #764ba2 0%, #667eea 100%); color: white; }
         .action-bar { position: sticky; top: 0; background: white; padding: 20px 0; margin-bottom: 20px; border-bottom: 2px solid #e9ecef; z-index: 100; }
+        .action-helper { font-size: 0.9rem; color: #495057; margin-top: 10px; }
+        .save-feedback { display: none; margin-top: 10px; font-size: 0.95rem; border-radius: 8px; padding: 12px 16px; }
+        .save-feedback.show { display: block; }
         .drag-handle { cursor: move; color: #6c757d; margin-right: 10px; }
         .subsection-title-input { border: none; background: transparent; font-weight: bold; font-size: 1rem; padding: 5px; border-bottom: 1px dashed #ccc; }
         .subsection-title-input:focus { outline: none; border-bottom: 2px solid #667eea; background: white; }
@@ -43,6 +46,20 @@
         <div class="maker-header">
             <h1><i class="fas fa-tools"></i> Enhanced Config Maker</h1>
             <p class="text-muted lead">Create and customize your assessment tool configuration with advanced editing features</p>
+        </div>
+
+        <div class="card my-4 border-0 shadow">
+            <div class="card-header bg-gradient text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h5 class="mb-0"><i class="fas fa-sitemap me-2"></i>Deployment Modalities Guidance</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">
+                    Capture how each Specialized Care Team (SCT) modality should operate, including operational support,
+                    WASH and clinical considerations. This information will be embedded in the generated checklist and can
+                    be linked to specific standards for clearer responsibility sharing with host facilities.
+                </p>
+                <div class="row g-4" id="modalities-grid"></div>
+            </div>
         </div>
 
         <div class="action-bar">
@@ -57,6 +74,8 @@
                     <i class="fas fa-save me-2"></i>Save Configuration
                 </button>
             </div>
+            <p class="action-helper text-center mb-0">Descarga un archivo <code>config.json</code> en tu carpeta de descargas. Usa “Import Config” para volver a cargarlo cuando lo necesites.</p>
+            <div id="save-feedback" class="save-feedback bg-light border border-success text-success text-center" role="status" aria-live="polite"></div>
         </div>
 
         <div class="card my-4 border-0 shadow">
@@ -308,6 +327,259 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     const ICONS = ['fa-info-circle', 'fa-book', 'fa-building', 'fa-star', 'fa-cogs', 'fa-stethoscope', 'fa-truck', 'fa-hand-holding-water', 'fa-file-alt', 'fa-heart', 'fa-user-md', 'fa-clipboard-check', 'fa-shield-alt', 'fa-ambulance', 'fa-hospital', 'fa-medkit', 'fa-pills', 'fa-syringe', 'fa-microscope', 'fa-flask', 'fa-heartbeat', 'fa-first-aid', 'fa-briefcase-medical'];
+
+    const MODALITY_OPTIONS = [
+        { key: 'embedded', label: 'Embedded', icon: 'fa-hospital-user', badgeClass: 'bg-primary' },
+        { key: 'coupled', label: 'Coupled', icon: 'fa-link', badgeClass: 'bg-warning text-dark' },
+        { key: 'self-sustained', label: 'Self-sustained', icon: 'fa-campground', badgeClass: 'bg-success' }
+    ];
+
+    const DEFAULT_MODALITIES = {
+        'embedded': {
+            label: 'Embedded',
+            description: 'The SCT integrates into an existing facility and aligns with host governance and patient pathways.',
+            operationalSupport: 'Host facility covers infrastructure, utilities, waste management and non-specialized logistics while the SCT provides specialty equipment, drugs and consumables.',
+            washConsiderations: 'Use host WASH and IPC systems, confirming isolation capacity, decontamination workflows and water quality before activating services.',
+            clinicalConsiderations: 'Synchronize specialized protocols, documentation and referral triggers with host teams to avoid duplicating processes.',
+            teamResponsibilities: 'Clarify which specialist staff, devices and pharmaceuticals the SCT will always provide when embedded.',
+            hostFacilitySupport: 'Document which infrastructure, utilities and ancillary services the host must guarantee before arrival.'
+        },
+        'coupled': {
+            label: 'Coupled',
+            description: 'The SCT deploys additional infrastructure on the host site and shares select support services.',
+            operationalSupport: 'Define which support services remain with the host and which are provided by the SCT (power, logistics, security, waste). Establish joint supply and maintenance routines.',
+            washConsiderations: 'Plan for shared water and sanitation usage, scaling storage, treatment and waste streams for the combined footprint, and align hygiene promotion messages.',
+            clinicalConsiderations: 'Clarify triage interfaces, patient flow, data sharing and referral pathways between the temporary SCT structures and the host facility.',
+            teamResponsibilities: 'Describe mobile assets, staffing and clinical functions that the SCT brings to bridge gaps on the shared site.',
+            hostFacilitySupport: 'List site services and operational enablers that must remain accessible from the host while coupled.'
+        },
+        'self-sustained': {
+            label: 'Self-sustained',
+            description: 'The SCT operates from fully self-sufficient facilities separate from any host infrastructure.',
+            operationalSupport: 'The SCT manages all site services including power generation, accommodation, logistics, waste, security and resupply throughout deployment duration.',
+            washConsiderations: 'Deploy self-contained water, sanitation and waste systems with surge capacity and stringent IPC controls for high-risk procedures.',
+            clinicalConsiderations: 'Ensure comprehensive clinical capability (stabilization, referral coordination, pharmacy, diagnostics) and continuity planning without host facility support.',
+            teamResponsibilities: 'Outline the full operational and clinical package the SCT delivers independently, including contingencies.',
+            hostFacilitySupport: 'Specify only the critical coordination touchpoints still required from national or local systems.'
+        }
+    };
+
+    const DEFAULT_MODALITY_KEYS = MODALITY_OPTIONS.map(option => option.key);
+
+    const deepClone = (value) => JSON.parse(JSON.stringify(value));
+
+    const normalizeDeploymentModalities = (modalities = {}) => {
+        const normalized = {};
+        const keys = new Set([
+            ...Object.keys(DEFAULT_MODALITIES),
+            ...Object.keys(modalities || {})
+        ]);
+
+        keys.forEach(key => {
+            normalized[key] = {
+                label: DEFAULT_MODALITIES[key]?.label || modalities[key]?.label || key,
+                description: '',
+                operationalSupport: '',
+                washConsiderations: '',
+                clinicalConsiderations: '',
+                teamResponsibilities: '',
+                hostFacilitySupport: '',
+                ...(DEFAULT_MODALITIES[key] || {}),
+                ...(modalities[key] || {})
+            };
+        });
+
+        return normalized;
+    };
+
+    let DEPLOYMENT_MODALITIES = normalizeDeploymentModalities();
+    let hasDocumentInputListener = false;
+    let hasModalityChangeListener = false;
+
+    const ensureModalitiesStructure = (config) => {
+        Object.values(config).forEach(section => {
+            if (!Array.isArray(section.modalities)) {
+                section.modalities = [...DEFAULT_MODALITY_KEYS];
+            }
+            if (section.hasSubsections && Array.isArray(section.subsections)) {
+                section.subsections.forEach(sub => {
+                    if (!Array.isArray(sub.modalities)) {
+                        sub.modalities = [...DEFAULT_MODALITY_KEYS];
+                    }
+                });
+            }
+        });
+    };
+
+    function renderModalitiesUI() {
+        const container = document.getElementById('modalities-grid');
+        if (!container) return;
+
+        container.innerHTML = Object.entries(DEPLOYMENT_MODALITIES).map(([key, data]) => `
+            <div class="col-md-4">
+                <div class="p-4 border rounded-4 h-100 shadow-sm">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="badge ${MODALITY_OPTIONS.find(opt => opt.key === key)?.badgeClass || 'bg-secondary'} me-2">
+                            <i class="fas ${MODALITY_OPTIONS.find(opt => opt.key === key)?.icon || 'fa-sitemap'}"></i>
+                        </span>
+                        <div>
+                            <h5 class="mb-0">${data.label}</h5>
+                            <small class="text-muted text-uppercase">${key.replace('-', ' ')}</small>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Definition</label>
+                        <textarea class="form-control modality-field" rows="3" data-modality="${key}" data-field="description" placeholder="How this modality is defined"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Operational & Logistics</label>
+                        <textarea class="form-control modality-field" rows="3" data-modality="${key}" data-field="operationalSupport" placeholder="Operational support responsibilities"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">WASH / IPC</label>
+                        <textarea class="form-control modality-field" rows="3" data-modality="${key}" data-field="washConsiderations" placeholder="Critical WASH & IPC considerations"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Clinical Focus</label>
+                        <textarea class="form-control modality-field" rows="3" data-modality="${key}" data-field="clinicalConsiderations" placeholder="Clinical management implications"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">What the SCT provides</label>
+                        <textarea class="form-control modality-field" rows="3" data-modality="${key}" data-field="teamResponsibilities" placeholder="Critical assets, personnel and services delivered by the SCT"></textarea>
+                    </div>
+                    <div>
+                        <label class="form-label fw-semibold">Support expected from host facilities</label>
+                        <textarea class="form-control modality-field" rows="3" data-modality="${key}" data-field="hostFacilitySupport" placeholder="Infrastructure, services or coordination that must be in place"></textarea>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        Object.entries(DEPLOYMENT_MODALITIES).forEach(([key, data]) => {
+            ['description', 'operationalSupport', 'washConsiderations', 'clinicalConsiderations', 'teamResponsibilities', 'hostFacilitySupport'].forEach(field => {
+                const textarea = container.querySelector(`.modality-field[data-modality="${key}"][data-field="${field}"]`);
+                if (textarea) textarea.value = data[field] || '';
+            });
+        });
+    }
+
+    function renderModalityCheckboxes(sectionKey, selectedModalities = DEFAULT_MODALITY_KEYS, scope = 'subsection', uniqueSuffix = '') {
+        const selected = Array.isArray(selectedModalities) && selectedModalities.length ? selectedModalities : DEFAULT_MODALITY_KEYS;
+        return `
+            <div class="mt-3">
+                <label class="form-label text-muted small text-uppercase fw-semibold">Applicable deployment modalities</label>
+                <div class="d-flex flex-wrap gap-3">
+                    ${MODALITY_OPTIONS.map(option => {
+                        const inputId = `modality-${sectionKey}-${scope}-${uniqueSuffix}-${option.key}`;
+                        const isChecked = selected.includes(option.key);
+                        return `
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input modality-checkbox" type="checkbox" value="${option.key}" data-section="${sectionKey}" data-scope="${scope}" id="${inputId}" ${isChecked ? 'checked' : ''}>
+                                <label class="form-check-label small" for="${inputId}"><i class="fas ${option.icon} me-1"></i>${option.label}</label>
+                            </div>`;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function handleDocumentInput(e) {
+        if (e.target.classList.contains('subsection-title-input')) {
+            const section = e.target.dataset.section;
+            const index = e.target.dataset.index;
+            const titleElement = document.getElementById(`subsection-title-${section}-${index}`);
+            if (titleElement) {
+                titleElement.textContent = e.target.value;
+            }
+            if (TOOL_CONFIG[section] && TOOL_CONFIG[section].subsections[index]) {
+                TOOL_CONFIG[section].subsections[index].title = e.target.value;
+            }
+        }
+
+        if (e.target.classList.contains('modality-field')) {
+            const modalityKey = e.target.dataset.modality;
+            const field = e.target.dataset.field;
+            if (DEPLOYMENT_MODALITIES[modalityKey]) {
+                DEPLOYMENT_MODALITIES[modalityKey][field] = e.target.value;
+            }
+        }
+    }
+
+    function handleModalityCheckboxChange(e) {
+        if (!e.target.classList.contains('modality-checkbox')) return;
+
+        const section = e.target.dataset.section;
+        const modality = e.target.value;
+        if (!section || !modality) return;
+
+        const parentSubsection = e.target.closest('.subsection-item');
+        if (parentSubsection) {
+            const container = parentSubsection.parentElement;
+            const itemIndex = Array.from(container.children).indexOf(parentSubsection);
+            const subsection = TOOL_CONFIG[section]?.subsections?.[itemIndex];
+            if (!subsection) return;
+            if (!Array.isArray(subsection.modalities)) subsection.modalities = [];
+            if (e.target.checked) {
+                if (!subsection.modalities.includes(modality)) subsection.modalities.push(modality);
+            } else {
+                subsection.modalities = subsection.modalities.filter(m => m !== modality);
+            }
+        } else {
+            const configSection = TOOL_CONFIG[section];
+            if (!configSection) return;
+            if (!Array.isArray(configSection.modalities)) configSection.modalities = [];
+            if (e.target.checked) {
+                if (!configSection.modalities.includes(modality)) configSection.modalities.push(modality);
+            } else {
+                configSection.modalities = configSection.modalities.filter(m => m !== modality);
+            }
+        }
+    }
+
+    function getModalityBadgeHtml(modalities = []) {
+        if (!Array.isArray(modalities) || modalities.length === 0) return '';
+        return `
+            <div class="mt-2 d-flex flex-wrap gap-2">
+                ${modalities.map(modality => {
+                    const option = MODALITY_OPTIONS.find(opt => opt.key === modality);
+                    if (!option) return '';
+                    return `<span class="badge ${option.badgeClass}"><i class="fas ${option.icon} me-1"></i>${option.label}</span>`;
+                }).join('')}
+            </div>
+        `;
+    }
+
+    function renderModalitiesPreview() {
+        if (!DEPLOYMENT_MODALITIES) return '';
+        return `
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-sitemap me-2"></i>Deployment Modalities Overview</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        ${Object.entries(DEPLOYMENT_MODALITIES).map(([key, data]) => {
+                            const option = MODALITY_OPTIONS.find(opt => opt.key === key) || {};
+                            return `
+                                <div class="col-md-4">
+                                    <div class="h-100 border rounded p-3">
+                                        <h6 class="fw-semibold"><i class="fas ${option.icon || 'fa-circle'} me-2"></i>${data.label}</h6>
+                                        <p class="text-muted small mb-2">${data.description || ''}</p>
+                                        <ul class="small ps-3 mb-0">
+                                            <li><strong>Operational / Logistics:</strong> ${data.operationalSupport || ''}</li>
+                                            <li><strong>WASH & IPC:</strong> ${data.washConsiderations || ''}</li>
+                                            <li><strong>Clinical focus:</strong> ${data.clinicalConsiderations || ''}</li>
+                                            <li><strong>SCT provides:</strong> ${data.teamResponsibilities || ''}</li>
+                                            <li><strong>Host support required:</strong> ${data.hostFacilitySupport || ''}</li>
+                                        </ul>
+                                    </div>
+                                </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 
     let TOOL_CONFIG = {
         'info': { 
@@ -613,6 +885,9 @@
     }
 
     function renderMakerUI() {
+        DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(DEPLOYMENT_MODALITIES);
+        ensureModalitiesStructure(TOOL_CONFIG);
+        renderModalitiesUI();
         const sectionsContainer = document.getElementById('sections-accordion');
         const weightsContainer = document.getElementById('weights-container');
         sectionsContainer.innerHTML = '';
@@ -632,13 +907,14 @@
                             <div class="subsection-item" data-id="${index}">
                                 <div class="d-flex align-items-center mb-2">
                                     <i class="fas fa-grip-vertical drag-handle"></i>
-                                    <input type="text" class="form-control subsection-title-input me-2" 
-                                           value="${sub.title}" 
-                                           data-section="${key}" 
+                                    <input type="text" class="form-control subsection-title-input me-2"
+                                           value="${sub.title}"
+                                           data-section="${key}"
                                            data-index="${index}">
                                     <strong class="flex-grow-1" id="subsection-title-${key}-${index}">${sub.title}</strong>
                                 </div>
                                 <textarea id="editor-${key}-${index}">${sub.content}</textarea>
+                                ${renderModalityCheckboxes(key, sub.modalities, 'subsection', index)}
                                 <div class="subsection-controls">
                                     <button class="btn btn-sm btn-outline-primary duplicate-item" title="Duplicate">
                                         <i class="fas fa-copy"></i>
@@ -658,7 +934,8 @@
                     <div class="mb-3">
                         <label class="form-label"><i class="fas fa-edit me-2"></i>Section Content</label>
                         <textarea id="editor-${key}">${config.content}</textarea>
-                    </div>`;
+                    </div>
+                    ${renderModalityCheckboxes(key, config.modalities, 'section', 'main')}`;
             }
 
             const sectionHTML = `
@@ -732,19 +1009,15 @@
     }
 
     function addEventListeners() {
-        // Subsection title editing
-        document.addEventListener('input', function(e) {
-            if (e.target.classList.contains('subsection-title-input')) {
-                const section = e.target.dataset.section;
-                const index = e.target.dataset.index;
-                const titleElement = document.getElementById(`subsection-title-${section}-${index}`);
-                if (titleElement) {
-                    titleElement.textContent = e.target.value;
-                }
-                // Update the title in TOOL_CONFIG
-                TOOL_CONFIG[section].subsections[index].title = e.target.value;
-            }
-        });
+        if (!hasDocumentInputListener) {
+            document.addEventListener('input', handleDocumentInput);
+            hasDocumentInputListener = true;
+        }
+
+        if (!hasModalityChangeListener) {
+            document.addEventListener('change', handleModalityCheckboxChange);
+            hasModalityChangeListener = true;
+        }
 
         document.querySelectorAll('.add-item').forEach(btn => btn.onclick = e => {
             const section = e.currentTarget.dataset.section;
@@ -756,23 +1029,25 @@
             newItem.innerHTML = `
                 <div class="d-flex align-items-center mb-2">
                     <i class="fas fa-grip-vertical drag-handle"></i>
-                    <input type="text" class="form-control subsection-title-input me-2" 
-                           value="New Standard" 
-                           data-section="${section}" 
+                    <input type="text" class="form-control subsection-title-input me-2"
+                           value="New Standard"
+                           data-section="${section}"
                            data-index="${newIndex}">
                     <strong class="flex-grow-1" id="subsection-title-${section}-${newIndex}">New Standard</strong>
                 </div>
                 <textarea id="editor-${section}-${newIndex}"><strong>New Standard</strong> - Description</textarea>
+                ${renderModalityCheckboxes(section, DEFAULT_MODALITY_KEYS, 'subsection', newIndex)}
                 <div class="subsection-controls">
                     <button class="btn btn-sm btn-outline-primary duplicate-item"><i class="fas fa-copy"></i></button>
                     <button class="btn btn-sm btn-danger remove-item"><i class="fas fa-trash"></i></button>
                 </div>`;
             container.appendChild(newItem);
-            
+
             // Add to TOOL_CONFIG
             TOOL_CONFIG[section].subsections.push({
                 title: "New Standard",
-                content: "<strong>New Standard</strong> - Description"
+                content: "<strong>New Standard</strong> - Description",
+                modalities: [...DEFAULT_MODALITY_KEYS]
             });
             
             newItem.querySelector('.remove-item').onclick = () => {
@@ -793,12 +1068,14 @@
                 dupItem.className = 'subsection-item';
                 dupItem.innerHTML = newItem.innerHTML.replace(new RegExp(newIndex, 'g'), dupIndex);
                 container.appendChild(dupItem);
-                
+
                 // Add to TOOL_CONFIG
                 const itemIndex = Array.from(container.children).indexOf(newItem);
+                const originalSubsection = TOOL_CONFIG[section].subsections[itemIndex];
                 TOOL_CONFIG[section].subsections.splice(itemIndex + 1, 0, {
                     title: title + " (Copy)",
-                    content: content
+                    content: content,
+                    modalities: originalSubsection?.modalities ? [...originalSubsection.modalities] : [...DEFAULT_MODALITY_KEYS]
                 });
                 
                 initEditors(`#editor-${section}-${dupIndex}`);
@@ -864,6 +1141,7 @@
     }
 
     function saveConfigFile() {
+        DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(DEPLOYMENT_MODALITIES);
         const finalConfig = {};
         document.querySelectorAll('.section-title-input').forEach(input => {
             const key = input.dataset.key;
@@ -884,13 +1162,27 @@
                         const editor = tinymce.get(item.querySelector('textarea').id);
                         const title = titleInput ? titleInput.value : 'Untitled';
                         const content = editor ? editor.getContent() : '';
-                        return { title, content };
+                        const itemIndex = Array.from(item.parentElement.children).indexOf(item);
+                        const modalityData = TOOL_CONFIG[key]?.subsections?.[itemIndex]?.modalities;
+                        return {
+                            title,
+                            content,
+                            modalities: Array.isArray(modalityData) && modalityData.length ? [...modalityData] : [...DEFAULT_MODALITY_KEYS]
+                        };
                     });
+                finalConfig[key].modalities = Array.isArray(TOOL_CONFIG[key].modalities) && TOOL_CONFIG[key].modalities.length
+                    ? [...TOOL_CONFIG[key].modalities]
+                    : [...DEFAULT_MODALITY_KEYS];
             } else {
                 const editor = tinymce.get(`editor-${key}`);
                 finalConfig[key].content = editor ? editor.getContent() : '';
+                finalConfig[key].modalities = Array.isArray(TOOL_CONFIG[key].modalities) && TOOL_CONFIG[key].modalities.length
+                    ? [...TOOL_CONFIG[key].modalities]
+                    : [...DEFAULT_MODALITY_KEYS];
             }
         });
+
+        finalConfig.deploymentModalities = deepClone(DEPLOYMENT_MODALITIES);
 
         const blob = new Blob([JSON.stringify(finalConfig, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -901,8 +1193,12 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
-        alert('Configuration saved successfully!');
+
+        const feedback = document.getElementById('save-feedback');
+        if (feedback) {
+            feedback.textContent = 'El archivo config.json se ha descargado. Revisa tu carpeta de descargas o impórtalo nuevamente con el botón “Import Config”.';
+            feedback.classList.add('show');
+        }
     }
 
     document.getElementById('btn-save-config').onclick = saveConfigFile;
@@ -910,9 +1206,22 @@
     document.getElementById('btn-preview').onclick = () => {
         const preview = document.getElementById('preview-content');
         preview.innerHTML = '<h3>Configuration Preview</h3>';
-        
+        preview.innerHTML += renderModalitiesPreview();
+
         Object.entries(TOOL_CONFIG).forEach(([key, config]) => {
             if(!config.enabled) return;
+            const sectionBadges = getModalityBadgeHtml(config.modalities);
+            let bodyContent = '';
+            if (config.hasSubsections) {
+                const items = config.subsections.map(sub => {
+                    const subBadges = getModalityBadgeHtml(sub.modalities);
+                    return `<li class="mb-2"><div class="fw-semibold">${sub.title}</div>${subBadges}</li>`;
+                }).join('');
+                bodyContent = `<ul class="mb-0">${items}</ul>`;
+            } else {
+                bodyContent = `<div class="preview-content">${config.content || 'Custom content section'}</div>`;
+            }
+
             preview.innerHTML += `
                 <div class="card mb-3">
                     <div class="card-header">
@@ -920,14 +1229,12 @@
                         <small class="text-muted">Weight: ${config.weight}%</small>
                     </div>
                     <div class="card-body">
-                        ${config.hasSubsections ? 
-                            '<ul>' + config.subsections.map(s => `<li>${s.title}</li>`).join('') + '</ul>' :
-                            '<div class="preview-content">' + (config.content || 'Custom content section') + '</div>'
-                        }
+                        ${sectionBadges}
+                        ${bodyContent}
                     </div>
                 </div>`;
         });
-        
+
         document.getElementById('preview-mode').style.display = 'block';
     };
 
@@ -946,7 +1253,12 @@
         const reader = new FileReader();
         reader.onload = (evt) => {
             try {
-                TOOL_CONFIG = JSON.parse(evt.target.result);
+                const importedConfig = JSON.parse(evt.target.result);
+                if (importedConfig.deploymentModalities) {
+                    DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(importedConfig.deploymentModalities);
+                    delete importedConfig.deploymentModalities;
+                }
+                TOOL_CONFIG = importedConfig;
                 renderMakerUI();
                 alert('Configuration imported successfully!');
             } catch(err) {
