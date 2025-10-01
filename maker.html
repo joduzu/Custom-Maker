@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Config Maker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.8.2/tinymce.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; min-height: 100vh; }
+        .maker-container { max-width: 1400px; margin: 0 auto; background: white; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); border-radius: 16px; padding: 40px; }
+        .maker-header { text-align: center; margin-bottom: 40px; padding-bottom: 30px; border-bottom: 2px solid #e9ecef; }
+        .maker-header h1 { color: #667eea; font-weight: 700; }
+        .subsection-item { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; padding: 20px; border: 2px solid #e9ecef; border-radius: 12px; background: #f8f9fa; cursor: move; transition: all 0.3s; }
+        .subsection-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: #667eea; }
+        .subsection-item.dragging { opacity: 0.5; }
+        .subsection-controls { display: flex; gap: 10px; align-self: flex-end; }
+        .weight-input { width: 100px; }
+        .accordion-button:not(.collapsed) { color: #fff; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .accordion-button:not(.collapsed)::after { filter: brightness(0) invert(1); }
+        .section-header-controls { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .icon-picker-btn { min-width: 50px; }
+        .icon-picker-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 1050; max-width: 600px; max-height: 80vh; overflow-y: auto; display: none; }
+        .icon-picker-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1040; display: none; }
+        .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 20px; }
+        .icon-option { padding: 15px; border: 2px solid #e9ecef; border-radius: 8px; cursor: pointer; text-align: center; transition: all 0.2s; }
+        .icon-option:hover { border-color: #667eea; background: #f0f4ff; transform: scale(1.1); }
+        .icon-option.selected { border-color: #667eea; background: #667eea; color: white; }
+        .preview-mode { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 2000; overflow-y: auto; padding: 40px; display: none; }
+        .preview-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #e9ecef; }
+        .btn-gradient { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; }
+        .btn-gradient:hover { background: linear-gradient(135deg, #764ba2 0%, #667eea 100%); color: white; }
+        .action-bar { position: sticky; top: 0; background: white; padding: 20px 0; margin-bottom: 20px; border-bottom: 2px solid #e9ecef; z-index: 100; }
+        .drag-handle { cursor: move; color: #6c757d; margin-right: 10px; }
+        .subsection-title-input { border: none; background: transparent; font-weight: bold; font-size: 1rem; padding: 5px; border-bottom: 1px dashed #ccc; }
+        .subsection-title-input:focus { outline: none; border-bottom: 2px solid #667eea; background: white; }
+    </style>
+</head>
+<body>
+    <div class="maker-container" id="main-maker">
+        <div class="maker-header">
+            <h1><i class="fas fa-tools"></i> Enhanced Config Maker</h1>
+            <p class="text-muted lead">Create and customize your assessment tool configuration with advanced editing features</p>
+        </div>
+
+        <div class="action-bar">
+            <div class="d-flex gap-2 justify-content-center flex-wrap">
+                <button class="btn btn-outline-primary" id="btn-import-config">
+                    <i class="fas fa-upload me-2"></i>Import Config
+                </button>
+                <button class="btn btn-outline-info" id="btn-preview">
+                    <i class="fas fa-eye me-2"></i>Preview
+                </button>
+                <button class="btn btn-gradient btn-lg" id="btn-save-config">
+                    <i class="fas fa-save me-2"></i>Save Configuration
+                </button>
+            </div>
+        </div>
+
+        <div class="card my-4 border-0 shadow">
+            <div class="card-header bg-gradient text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h5 class="mb-0"><i class="fas fa-balance-scale me-2"></i>Section Weights (%)</h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="weights-container"></div>
+                <div class="alert mt-3" id="weight-sum-alert">
+                    <strong>Total Weight: <span id="weight-sum">0</span>%</strong> 
+                    <span class="ms-3">(Must equal 100%)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="accordion" id="sections-accordion"></div>
+    </div>
+
+    <div class="preview-mode" id="preview-mode">
+        <div class="preview-header">
+            <h2><i class="fas fa-eye me-2"></i>Configuration Preview</h2>
+            <button class="btn btn-outline-secondary" id="btn-close-preview">
+                <i class="fas fa-times me-2"></i>Close Preview
+            </button>
+        </div>
+        <div id="preview-content"></div>
+    </div>
+
+    <div class="icon-picker-backdrop" id="icon-picker-backdrop"></div>
+    <div class="icon-picker-modal" id="icon-picker-modal">
+        <h5>Select an Icon</h5>
+        <input type="text" class="form-control mb-3" id="icon-search" placeholder="Search icons...">
+        <div class="icon-grid" id="icon-grid"></div>
+    </div>
+
+    <input type="file" id="config-import-input" style="display: none;" accept=".json">
+
+    <div id="templates" style="display: none;">
+        <div id="template-info">
+            <h2 class="mb-4">Self-Assessment Checklist for Emergency Medical Teams</h2>
+            <div class="card section-card">
+                <div class="card-body">
+                    <h5 class="card-title">Minimum Standards for Highly Infectious Disease (HID) Specialized Care Team (SCT) – AWD Inpatient</h5>
+                    <p class="card-text">This self-assessment tool is designed to help HID SCTs evaluate their readiness and capabilities according to the established minimum standards.</p>
+                    <p class="card-text">Use this digital tool to complete your assessment, track progress, and generate reports for your organization and the coordination mechanism.</p>
+                    <p class="text-muted">Version 1.0/2025</p>
+                </div>
+            </div>
+            <div class="row mt-4">
+                <div class="col-md-4">
+                    <div class="overview-card bg-light">
+                        <i class="fas fa-check-circle fa-2x text-success"></i>
+                        <h5>Completed Sections</h5>
+                        <div class="card-value" id="completedSections">0/8</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="overview-card bg-light">
+                        <i class="fas fa-chart-line fa-2x text-primary"></i>
+                        <h5>Overall Score</h5>
+                        <div class="card-value" id="overallScore">0%</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="overview-card bg-light">
+                        <i class="fas fa-clock fa-2x text-warning"></i>
+                        <h5>Last Updated</h5>
+                        <div class="card-value" id="lastUpdated">Today</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="template-definition">
+            <h2 class="mb-4">Technical Standards Definition</h2>
+            <div class="card section-card">
+                <div class="card-body">
+                    <p>HID SCTs are national or international teams deployed at the request of the Ministry of Health (MOH)/ coordination cell of the host country. The HID SCT's modality of deployment (embed, coupled or self-sustained) depends on context and defined capacity/level of care.</p>
+                    <p>Depending on modality of deployment, some operations support, logistics and WASH elements may be provided by a host facility.</p>
+                    <p>The level of required support needs to be clarified prior to any deployment, and agreed by teams, receiving facilities and the coordination mechanism. Teams must have SOPs in place that clearly state the minimum support requirements that need to be provided by the host facility in order to deploy. Teams with greater operational independence have greater flexibility and are more likely to be requested to deploy.</p>
+                    <p>Regardless of the modality of deployment, teams need to ensure self-sufficiency and the ability to provide all the required equipment and consumables to deliver their services as defined by "Minimum standards and recommendations for medical teams responding to highly infectious disease outbreaks" for the entire period of their deployment. All teams opting for an embedded or coupled modality of deployment MUST communicate with the receiving facility to determine, which specialist equipment or consumables might be available and to understand local procurement challenges. Teams should always plan for contingencies and deploy with increased quantities of required equipment and consumables if resupply is likely to be challenging. HID SCTs needs to declare their intended length of stay (including potential staff rotations) to the EMT coordination mechanism (EMTCC)/Ministry of Health in their Expression of Interest.</p>
+                </div>
+            </div>
+        </div>
+        <div id="template-org-detail">
+            <h2 class="mb-4">Organizational Details</h2>
+            <div class="card section-card">
+                <div class="section-header">
+                    <h5>Team Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="teamName" class="form-label">Team Name</label>
+                            <input type="text" class="form-control" id="teamName">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="region" class="form-label">Region</label>
+                            <input type="text" class="form-control" id="region">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="country" class="form-label">Country</label>
+                            <input type="text" class="form-control" id="country">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="mentorName" class="form-label">Mentor Name</label>
+                            <input type="text" class="form-control" id="mentorName">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card section-card">
+                <div class="section-header">
+                    <h5>Contact Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <h6>Headquarters Contact</h6>
+                            <div class="mb-2">
+                                <label class="form-label">Name</label>
+                                <input type="text" class="form-control" id="hqName">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" id="hqEmail">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" class="form-control" id="hqPhone">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Position</label>
+                                <input type="text" class="form-control" id="hqPosition">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Operations Contact</h6>
+                            <div class="mb-2">
+                                <label class="form-label">Name</label>
+                                <input type="text" class="form-control" id="opsName">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" id="opsEmail">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" class="form-control" id="opsPhone">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Position</label>
+                                <input type="text" class="form-control" id="opsPosition">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card section-card">
+                <div class="section-header">
+                    <h5>Progress Overview</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Section</th>
+                                <th>Weight</th>
+                                <th>Status</th>
+                                <th>% Completed</th>
+                            </tr>
+                        </thead>
+                        <tbody id="progressTableBody">
+                            <!-- Progress rows will be dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div id="template-summary">
+            <h2 class="mb-4">Summary & Action Plan</h2>
+            <div class="card section-card">
+                <div class="section-header">
+                    <h5>Overall Readiness Assessment</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="strengths" class="form-label"><strong>Strengths Identified:</strong></label>
+                        <textarea class="form-control summary-textarea" id="strengths" placeholder="List the top 3-5 strengths identified through the assessment..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="criticalGaps" class="form-label"><strong>Critical Gaps Requiring Immediate Action:</strong></label>
+                        <textarea class="form-control summary-textarea" id="criticalGaps" placeholder="List the critical gaps that need immediate attention..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Timeline for Addressing Gaps:</strong></label>
+                        <div class="mb-2">
+                            <label class="form-label">Immediate (0-1 month):</label>
+                            <textarea class="form-control summary-textarea" id="immediateActions" placeholder="Actions to be taken immediately..."></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Short-term (1-3 months):</label>
+                            <textarea class="form-control summary-textarea" id="shortTermActions" placeholder="Actions for the next 1-3 months..."></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Medium-term (3-6 months):</label>
+                            <textarea class="form-control summary-textarea" id="mediumTermActions" placeholder="Actions for 3-6 months..."></textarea>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Support Required:</strong></label>
+                        <div class="mb-2">
+                            <label class="form-label">Technical assistance needed:</label>
+                            <textarea class="form-control summary-textarea" id="technicalAssistance" placeholder="Describe technical support requirements..."></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Training requirements:</label>
+                            <textarea class="form-control summary-textarea" id="trainingRequirements" placeholder="List training needs..."></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Resource requirements:</label>
+                            <textarea class="form-control summary-textarea" id="resourceRequirements" placeholder="Specify resource needs..."></textarea>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="nextSteps" class="form-label"><strong>Next Steps:</strong></label>
+                        <textarea class="form-control summary-textarea" id="nextSteps" placeholder="1. First priority action&#10;2. Second priority action&#10;3. Third priority action"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="completionDate" class="form-label">Date of Completion:</label>
+                            <input type="date" class="form-control" id="completionDate">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="reviewedBy" class="form-label">Reviewed by:</label>
+                            <input type="text" class="form-control" id="reviewedBy" placeholder="Name and title">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label for="mentorAssignment" class="form-label">Mentor Assignment (if applicable):</label>
+                        <input type="text" class="form-control" id="mentorAssignment" placeholder="Mentor name and contact">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    const ICONS = ['fa-info-circle', 'fa-book', 'fa-building', 'fa-star', 'fa-cogs', 'fa-stethoscope', 'fa-truck', 'fa-hand-holding-water', 'fa-file-alt', 'fa-heart', 'fa-user-md', 'fa-clipboard-check', 'fa-shield-alt', 'fa-ambulance', 'fa-hospital', 'fa-medkit', 'fa-pills', 'fa-syringe', 'fa-microscope', 'fa-flask', 'fa-heartbeat', 'fa-first-aid', 'fa-briefcase-medical'];
+
+    let TOOL_CONFIG = {
+        'info': { 
+            title: 'INFO', 
+            icon: 'fa-info-circle', 
+            hasSubsections: false, 
+            weight: 0, 
+            enabled: true,
+            content: document.getElementById('template-info').innerHTML
+        },
+        'definition': { 
+            title: 'DEFINITION', 
+            icon: 'fa-book', 
+            hasSubsections: false, 
+            weight: 0, 
+            enabled: true,
+            content: document.getElementById('template-definition').innerHTML
+        },
+        'org-detail': { 
+            title: 'ORGANIZATIONAL DETAIL', 
+            icon: 'fa-building', 
+            hasSubsections: false, 
+            weight: 0, 
+            enabled: true,
+            content: document.getElementById('template-org-detail').innerHTML
+        },
+        'guiding-principles': { 
+            title: 'GUIDING PRINCIPLES', 
+            icon: 'fa-star', 
+            hasSubsections: true, 
+            weight: 5, 
+            enabled: true, 
+            subsections: [
+                {
+                    title: "Safe Care",
+                    content: "<p><strong>Safe Care</strong> - The provision of safe care for Highly Infectious Disease Specialized Care Teams (HID SCTs) is grounded in comprehensive strategies designed to minimize transmission risk and protect patients, staff, and the community during highly infectious disease (HID) outbreaks</p>"
+                },
+                {
+                    title: "Equitable Care",
+                    content: "<p><strong>Equitable Care</strong> - Equitable care for HID SCTs primarily revolves around ensuring that necessary and quality services are accessible to all affected populations, particularly vulnerable groups, while coordinating response efforts to maintain essential, pre-existing health services.</p>"
+                },
+                {
+                    title: "Ethical Care",
+                    content: "<p><strong>Ethical Care</strong> - The provision of ethical care for Highly Infectious Disease (HID) Specialized Care Teams (SCTs) is fundamentally linked to principles of human rights, dignity, equity, and rigorous adherence to clinical standards, especially when facing decisions regarding resource limitations and complex patient situations.</p>"
+                },
+                {
+                    title: "Accountable Response",
+                    content: "<p><strong>Accountable Response</strong> - An accountable response for Highly Infectious Disease Specialized Care Teams (HID SCTs) is achieved through structured coordination, transparent reporting, adherence to rigorous minimum standards, and comprehensive accountability mechanisms that focus on quality assurance, ethical conduct, and community trust.</p>"
+                },
+                {
+                    title: "Appropriate Response",
+                    content: "<p><strong>Appropriate Response</strong> - An appropriate response for Highly Infectious Disease (HID) outbreaks, requires a comprehensive, coordinated, and scalable strategy built upon predefined minimum technical standards, robust operational logistics, and strong community engagement</p>"
+                },
+                {
+                    title: "Coordinated Response",
+                    content: "<p><strong>Coordinated Response</strong> - A coordinated response for Highly Infectious Disease (HID) outbreaks is essential for maximizing effectiveness, efficiency, and safety, as it ensures that Specialized Care Teams (SCTs) operate seamlessly within a national emergency management framework</p>"
+                }
+            ]
+        },
+        'core-standards': { 
+            title: 'CORE STANDARDS', 
+            icon: 'fa-cogs', 
+            hasSubsections: true, 
+            weight: 15, 
+            enabled: true, 
+            subsections: [
+                {
+                    title: "Administration & Organizational Management",
+                    content: "<p><strong>Administration &amp; Organizational Management</strong></p>\n<p>Administrative and management systems that allow EMTs to rapidly and safely deploy teams and maintain HQ office support from their homebase throughout missions.&nbsp;</p>\n<p><em>Evidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\"><em>- Policies and documentation<br>- Organizational leadership<br>- Finance and fundraising<br>- Risk management, safety and security (at institutional level)<br>- Remote support for deployed teams<br>- Support to team members and their families<br>- External liaison, media and communications<br>- Organizational learning and after-action reviews</em></pre>\n<p>&nbsp;</p>"
+                },
+                {
+                    title: "Human Resources",
+                    content: "<p><strong>Human Resources</strong></p>\n<p><span class=\"ng-star-inserted\" data-start-index=\"0\">The human resources (staffing) requirements for an Acute Watery Diarrhoea (AWD) Outpatient Specialized Care Team (SCT) are based on providing rapid evaluation, early treatment, and community education for mild cases, while ensuring critical cases are referred to higher levels of care.</span></p>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"841\">\n<p><em>Evidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\"><em>-</em>Pre-Deployment Preparedness<br><br><em>-</em>On Deployment<br><br><em>-</em>Post Deployment<br><br></pre>\n</div>"
+                },
+                {
+                    title: "Professional Licensing & Conduct",
+                    content: "<p><strong>Professional Licensing &amp; Conduct</strong></p>\n<p>The AWD Outpatient capacity relies on staff who are not only trained in general medicine and AWD case management but also prepared for the infectious disease context</p>\n<p><em>Evidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\"><em>- Professional registration, licensing and credentialing<br>- Scope of practice<br>- Patients' experience and feedback<br>- Professional insurance, indemnity and issues of malpractice<br>- Culture of safety</em></pre>"
+                },
+                {
+                    title: "Training of Teams",
+                    content: "<p><strong>Training of Teams</strong></p>\n<p><span class=\"ng-star-inserted\" data-start-index=\"0\">T</span><span class=\"ng-star-inserted\" data-start-index=\"0\">he training for Acute Watery Diarrhoea (AWD) Outpatient Specialized Care Teams (SCTs) is a crucial component of preparation, ensuring staff can safely and competently deliver outbreak-specific services. </span><span class=\"ng-star-inserted\" data-start-index=\"202\">&nbsp;This training must be comprehensive, contextualized, and continuous, reflecting the high-risk environment and specialized nature of the HID response</span></p>\n<p><em>Evidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\">- Training framework and learning pathways<br>- Training curriculum, content and learning objectives<br>- Operational training and simulations</pre>"
+                },
+                {
+                    title: "Coordination of EMTs",
+                    content: "<p><strong>Coordination of EMTs</strong></p>\n<p><span class=\"ng-star-inserted\" data-start-index=\"241\">AWD Outpatient teams (often referred to as Oral Rehydration Points or ORPs</span><span class=\"ng-star-inserted\" data-start-index=\"315\">) operate close to affected communities, particularly in remote areas or near existing health-care facilities (HCFs)</span><span class=\"ng-star-inserted\" data-start-index=\"431\">. Coordination is necessary for operational alignment, effective referral, and information sharing</span></p>\n<p><em>Evidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\">- Activation mechanisms<br>- Registration on arrival<br>- Field coordination<br>- Reporting on exit</pre>"
+                },
+                {
+                    title: "Team field management and operations",
+                    content: "<p><strong>Team field management and operations</strong></p>\n<p><span class=\"ng-star-inserted\" data-start-index=\"0\">The field management and day-to-day operations for an Acute Watery Diarrhoea (AWD) Outpatient Specialized Care Team (SCT) require strict adherence to standard operating procedures (SOPs) for safety, rigorous coordination, and continuous logistical support, all while operating in proximity to affected communities, often during </span><strong class=\"ng-star-inserted\" data-start-index=\"328\">daylight hour</strong></p>\n<p>&nbsp;E<em>vidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\">- Surveillance and disease early warning<br>- Public health messaging<br>- Wider health needs</pre>"
+                },
+                {
+                    title: "Records and Reporting",
+                    content: "<p class=\"MsoNormal\"><strong>Records and Reporting</strong></p>\n<p class=\"MsoNormal\">The functions of recording and reporting are essential technical standards applicable across all Specialized Care Teams (SCTs) responding to Highly Infectious Disease (HID) outbreaks, ensuring surveillance, accountability, and real-time situational awareness for national authorities.</p>\n<p>&nbsp;E<em>vidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\">- Patient records<br>- Reporting and MDS (EMT Minimum Data Set)&nbsp;<br>- Research and academic papers&nbsp;<br>- Incident reporting system</pre>"
+                },
+                {
+                    title: "Support wider public health response",
+                    content: "<p class=\"MsoNormal\"><strong>Support wider public health response</strong></p>\n<p class=\"MsoNormal\"><strong>Outpatient teams</strong> specifically <strong>act as sentinel sites</strong> during an outbreak by collecting and sharing epidemiological data</p>\n<p class=\"MsoNormal\">This modality requires <strong>documentation and daily reporting (including case numbers)</strong>. AWD Outpatient teams, which operate close to affected communities, provide simple documentation, such as number of patients, screening outcome, and action.</p>\n<p>E<em>vidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\">- Surveillance and disease early warning<br>- Public health messaging<br>- &nbsp;Wider health needs</pre>"
+                },
+                {
+                    title: "Support national and local clinical system and patient referral",
+                    content: "<p><strong><span class=\"ng-star-inserted\" data-start-index=\"0\">Support national and local clinical system and patient referral</span></strong></p>\n<p><span class=\"ng-star-inserted\" data-start-index=\"0\">The Acute Watery Diarrhoea (AWD) Outpatient Specialized Care Teams (SCTs) primarily function as a critical link supporting both the&nbsp;</span><strong class=\"ng-star-inserted\" data-start-index=\"132\">national and local clinical systems</strong><span class=\"ng-star-inserted\" data-start-index=\"167\"> by providing front-line stabilization and establishing </span><strong class=\"ng-star-inserted\" data-start-index=\"223\">safe patient referral pathways</strong><span class=\"ng-star-inserted\" data-start-index=\"253\"> to higher levels of care.</span></p>\n<p>E<em>vidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\">- Patient referral pathways<br>- Documentation<br>- Mass casualty management</pre>"
+                },
+                {
+                    title: "Self-sufficiency",
+                    content: "<p><strong>Self-sufficiency</strong></p>\n<p>EMTs are required to be self-sufficient and have resupply systems in place that do not undermine the local community's economy or resources in a negative way. <span class=\"ng-star-inserted\" data-start-index=\"1141\">The AWD Outpatient SCT (often referred to as an Oral Rehydration Point or ORP</span><span class=\"ng-star-inserted\" data-start-index=\"1218\">) may operate under different deployment models, but the principle of self-sufficiency remains crucial, particularly concerning specialized supplies and staffing.</span></p>\n<p>E<em>vidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\">- Aspects of self sufficiency<br>- Length of self sufficiency<br>- Staff</pre>"
+                }
+            ]
+        },
+        'clinical-standards': { 
+            title: 'CLINICAL STANDARDS', 
+            icon: 'fa-stethoscope', 
+            hasSubsections: true, 
+            weight: 25, 
+            enabled: true, 
+            subsections: [
+                {
+                    title: "Length of stay",
+                    content: "<p><strong>Length of stay</strong> - Ability to operate for a minimum of 4 weeks</p>\n<p><em>Evidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\"><em>- SOP describing deployment plan, <br>  inclusive of plans for staffing <br>  and supply and resupply. </em></pre>\n<p>&nbsp;</p>"
+                },
+                {
+                    title: "Team size and configuration",
+                    content: "<p><strong>Team size and configuration</strong> - SCTs should be adequately sized and appropriately configured for their tasking. T<span class=\"ng-star-inserted\" data-start-index=\"686\">he overall response capacity requires multidisciplinary SCTs that offer standardized outbreak-specific services</span><span class=\"ng-star-inserted\" data-start-index=\"798\">. Configuration must be flexible to reflect </span><strong class=\"ng-star-inserted\" data-start-index=\"842\">shift patterns and potential mandatory quarantine</strong><span class=\"ng-star-inserted\" data-start-index=\"891\">.</span></p>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"929\"><strong class=\"ng-star-inserted\" data-start-index=\"929\">Capacity:</strong><span class=\"ng-star-inserted\" data-start-index=\"938\"> The typical capacity planning is for </span><strong class=\"ng-star-inserted\" data-start-index=\"976\">50 outpatients/day</strong><span class=\"ng-star-inserted\" data-start-index=\"994\"> and </span><strong class=\"ng-star-inserted\" data-start-index=\"999\">10 ORP places</strong><span class=\"ng-star-inserted\" data-start-index=\"1012\"> (seats for rehydration under temporary observation)</span><span class=\"ng-star-inserted\" data-start-index=\"1064\">.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1065\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"1065\">Minimum Staffing:</strong><span class=\"ng-star-inserted\" data-start-index=\"1082\"> Every AWD outpatient facility/post needs to have </span><strong class=\"ng-star-inserted\" data-start-index=\"1132\">at least two staff members present at all times</strong><span class=\"ng-star-inserted\" data-start-index=\"1179\"> during opening hours to safely operate</span><span class=\"ng-star-inserted\" data-start-index=\"1218\">.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1219\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"1219\">Recommended Ratio:</strong><span class=\"ng-star-inserted\" data-start-index=\"1237\"> The configuration calls for </span><strong class=\"ng-star-inserted\" data-start-index=\"1266\">1 Community Health Worker (CHW) or equivalent for every 25 patients</strong><span class=\"ng-star-inserted\" data-start-index=\"1333\">.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1334\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"1334\">Medical Support:</strong><span class=\"ng-star-inserted\" data-start-index=\"1350\"> A </span><strong class=\"ng-star-inserted\" data-start-index=\"1353\">Medical doctor</strong><span class=\"ng-star-inserted\" data-start-index=\"1367\"> should be available for </span><strong class=\"ng-star-inserted\" data-start-index=\"1392\">direct or remote support and consultation</strong><span class=\"ng-star-inserted\" data-start-index=\"1433\"> to the outpatient capacity</span><span class=\"ng-star-inserted\" data-start-index=\"1460\">.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1461\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"1461\">Surge Planning:</strong><span class=\"ng-star-inserted\" data-start-index=\"1476\"> Teams must </span><strong class=\"ng-star-inserted\" data-start-index=\"1488\">anticipate and provide surge capacity</strong><span class=\"ng-star-inserted\" data-start-index=\"1525\"> depending on the context</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1461\">&nbsp;</div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1461\">\n<p><em>Evidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\"><em>- SOP describing deployment plan, inclusive of plans for staffing and supply and resupply</em></pre>\n</div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1461\">&nbsp;</div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1461\"><span class=\"ng-star-inserted\" data-start-index=\"1550\">.</span></div>"
+                },
+                {
+                    title: "Staff skills",
+                    content: "<p><strong>Staff skills - </strong>Staff within AWD Outpatient SCTs must demonstrate specific competencies for acute care and public health safety in the infectious disease context.&nbsp;</p>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1793\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"1793\">Core Competencies (AWD):</strong><span class=\"ng-star-inserted\" data-start-index=\"1817\"> Staff must be capable of </span><strong class=\"ng-star-inserted\" data-start-index=\"1843\">rapid evaluation of all patients on arrival </strong><span class=\"ng-star-inserted\" data-start-index=\"1886\">, </span><strong class=\"ng-star-inserted\" data-start-index=\"1888\">evaluation of the degree of dehydration </strong><span class=\"ng-star-inserted\" data-start-index=\"1927\">, </span><strong class=\"ng-star-inserted\" data-start-index=\"1929\">oral rehydration treatment</strong><span class=\"ng-star-inserted\" data-start-index=\"1955\"> for mild cases of dehydration </span><span class=\"ng-star-inserted\" data-start-index=\"1985\">, </span><strong class=\"ng-star-inserted\" data-start-index=\"1987\">recognizing danger signs and critical conditions</strong><span class=\"ng-star-inserted\" data-start-index=\"2035\"> that require immediate action </span><span class=\"ng-star-inserted\" data-start-index=\"2065\">, and </span><strong class=\"ng-star-inserted\" data-start-index=\"2071\">initiating referral/transfer</strong><span class=\"ng-star-inserted\" data-start-index=\"2099\"> of cases that need higher levels of care </span><span class=\"ng-star-inserted\" data-start-index=\"2140\">.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2141\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"2141\">Operational Skills:</strong><span class=\"ng-star-inserted\" data-start-index=\"2160\"> Personnel must be </span><strong class=\"ng-star-inserted\" data-start-index=\"2179\">experienced in the infectious disease outbreak context</strong><span class=\"ng-star-inserted\" data-start-index=\"2233\"> and </span><strong class=\"ng-star-inserted\" data-start-index=\"2238\">IPC trained </strong><span class=\"ng-star-inserted\" data-start-index=\"2249\">. They must also provide </span><strong class=\"ng-star-inserted\" data-start-index=\"2274\">health promotion/patient education&nbsp;</strong><span class=\"ng-star-inserted\" data-start-index=\"2308\"> and </span><strong class=\"ng-star-inserted\" data-start-index=\"2313\">provision of basic psychosocial support </strong><span class=\"ng-star-inserted\" data-start-index=\"2352\">.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2141\">\n<p><em>Evidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\"><em>- Rapid patient evaluation on arrival</em><br><em>- Dehydration assessment SOP</em><br><em>- Oral rehydration treatment</em><br><em>- Danger sign recognition</em><br><em>- Referral/transfer initiation</em></pre>\n<p>&nbsp;</p>\n</div>"
+                },
+                {
+                    title: "Staff qualifications and Experience",
+                    content: "<p><strong>Staff qualifications and Experience - </strong>Staff should have the appropriate qualifications and experience to deploy with an SCT.&nbsp;</p>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2770\"><span class=\"ng-star-inserted\" data-start-index=\"2770\">All personnel must meet professional standards and have specific training related to the HID context:</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2871\"><span class=\"ng-star-inserted\" data-start-index=\"2895\">Clinical staff, including those on a Rapid Response Team (RRT) roster supporting clinical care, should be&nbsp;</span><span class=\"ng-star-inserted\">trained, equipped, and appropriately licensed</span><span class=\"ng-star-inserted\" data-start-index=\"3047\">. Teams must meet </span><span class=\"ng-star-inserted\">predefined minimum standards</span><span class=\"ng-star-inserted\" data-start-index=\"3093\"> as part of a structured surge system.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2871\">&nbsp;</div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2871\"><span class=\"ng-star-inserted\" data-start-index=\"3093\">&nbsp;<span class=\"ng-star-inserted\">MD Experience:</span><span class=\"ng-star-inserted\" data-start-index=\"3438\"> The Medical Doctor providing support should have </span><span class=\"ng-star-inserted\">general medicine with in-depth knowledge of AWD/cholera, especially case-management.</span></span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2871\">\n<p><em>Evidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\"><em>- </em>Professional license verification documents<br><em>- </em>Specialized HID training certificates<br><em>- </em>Equipment competency assessments<br><em>- </em>Clinical skills validation records</pre>\n</div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2871\">&nbsp;</div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2871\">&nbsp;</div>"
+                },
+                {
+                    title: "Service Overview",
+                    content: "<p><strong>Service Overview -&nbsp;</strong><span class=\"ng-star-inserted\" data-start-index=\"1214\">Services are usually provided during&nbsp;</span><strong class=\"ng-star-inserted\" data-start-index=\"1253\">daylight hours</strong></p>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"624\"><strong class=\"ng-star-inserted\" data-start-index=\"624\">Services Provided:</strong><span class=\"ng-star-inserted\" data-start-index=\"642\"> Screening, assessment, stabilization, treatment of cases that do not require inpatient care, temporary observation, referral of patients requiring higher levels of care, provision of basic psychosocial support, temporary isolation capacity, patient education, and potential support for Oral Cholera Vaccine (OCV) campaign</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"624\"><span class=\"ng-star-inserted\">&bull;&nbsp;</span><strong class=\"ng-star-inserted\" data-start-index=\"966\">Stabilization:</strong><span class=\"ng-star-inserted\" data-start-index=\"980\"> In the context of AWD outpatient care, </span><strong class=\"ng-star-inserted\" data-start-index=\"1020\">stabilization refers to oral rehydration therapy</strong></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"624\"><span class=\"ng-star-inserted\">&bull;&nbsp;</span><strong class=\"ng-star-inserted\" data-start-index=\"1069\">Capacity and Hours:</strong><span class=\"ng-star-inserted\" data-start-index=\"1088\"> Typical capacity planning is for </span><strong class=\"ng-star-inserted\" data-start-index=\"1122\">50 outpatients per day</strong><span class=\"ng-star-inserted\" data-start-index=\"1144\"> and </span><strong class=\"ng-star-inserted\" data-start-index=\"1149\">10 ORP places</strong><span class=\"ng-star-inserted\" data-start-index=\"1162\"> (seats for rehydration under temporary observation)&nbsp;</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"624\">\n<p><em>Evidence descriptors:</em></p>\n<pre style=\"padding-left: 40px;\"><em>- </em>Professional license verification documents<br><em>- </em>Specialized HID training certificates<br><em>- </em>Equipment competency assessments<br><em>- </em>Clinical skills validation recor</pre>\n</div>"
+                },
+                {
+                    title: "Screening and Triage",
+                    content: "<p><strong>Screening and Triage - </strong>The goal of screening and triage is rapid identification of severe cases and vulnerable patients to ensure timely treatment and isolation</p>\n<table class=\"ng-star-inserted\" style=\"width: 100.033%; height: 156.771px;\" data-start-index=\"1429\">\n<tbody>\n<tr>\n<td style=\"width: 13.3649%;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1457\"><strong class=\"ng-star-inserted\" data-start-index=\"1457\">Area</strong></div>\n</td>\n<td style=\"width: 58.4951%;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1466\"><strong><span class=\"ng-star-inserted\" data-start-index=\"1466\">Description</span></strong></div>\n</td>\n<td style=\"width: 28.129%;\">\n<pre class=\"paragraph normal ng-star-inserted\" data-start-index=\"1466\"><strong><span class=\"ng-star-inserted\" data-start-index=\"1466\"><em>Evidence descriptors</em></span></strong></pre>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 22.3958px;\">\n<td class=\"ng-star-inserted\" style=\"width: 13.3649%; height: 22.3958px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1457\"><strong class=\"ng-star-inserted\" data-start-index=\"1457\">Screening</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 58.4951%; height: 22.3958px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1466\"><span class=\"ng-star-inserted\" data-start-index=\"1466\">Screen patients based on the current case definition</span><button class=\"xap-inline-dialog citation-marker ng-star-inserted\" aria-haspopup=\"dialog\" aria-describedby=\"cdk-describedby-message-ng-1-15\" data-disabled=\"false\"></button></div>\n</td>\n<td style=\"width: 28.129%;\">\n<pre class=\"paragraph normal ng-star-inserted\" data-start-index=\"1466\"><span class=\"ng-star-inserted\" data-start-index=\"1466\">Case definition criteria checklists</span></pre>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 22.3958px;\">\n<td class=\"ng-star-inserted\" style=\"width: 13.3649%; height: 22.3958px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1519\"><strong class=\"ng-star-inserted\" data-start-index=\"1519\">Triage Focus</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 58.4951%; height: 22.3958px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1531\"><span class=\"ng-star-inserted\" data-start-index=\"1531\">The focus of triage is the </span><span class=\"ng-star-inserted\">rapid assessment of the disease severity, including the level of dehydration</span></div>\n</td>\n<td style=\"width: 28.129%;\">\n<pre class=\"paragraph normal ng-star-inserted\" data-start-index=\"1531\"><span class=\"ng-star-inserted\" data-start-index=\"1531\">Dehydration severity classification charts</span></pre>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 44.7917px;\">\n<td class=\"ng-star-inserted\" style=\"width: 13.3649%; height: 44.7917px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1635\"><strong class=\"ng-star-inserted\" data-start-index=\"1635\">Vulnerability Factors</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 58.4951%; height: 44.7917px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1656\"><span class=\"ng-star-inserted\" data-start-index=\"1656\">Triage must also include the rapid identification of </span><span class=\"ng-star-inserted\">vulnerability factors that require special attention</span><span class=\"ng-star-inserted\" data-start-index=\"1761\">, such as pregnancy, infants, elderly, or acute malnutrition, for isolation, stabilization, or referral.</span></div>\n</td>\n<td style=\"width: 28.129%;\">\n<pre class=\"paragraph normal ng-star-inserted\" data-start-index=\"1656\"><span class=\"ng-star-inserted\" data-start-index=\"1656\">Vulnerability screening checklists</span></pre>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 22.3958px;\">\n<td class=\"ng-star-inserted\" style=\"width: 13.3649%; height: 22.3958px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1865\"><strong class=\"ng-star-inserted\" data-start-index=\"1865\">Isolation</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 58.4951%; height: 22.3958px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1874\"><span class=\"ng-star-inserted\" data-start-index=\"1874\">Assess indications and </span><span class=\"ng-star-inserted\">provide immediate isolation, if indicated</span></div>\n</td>\n<td style=\"width: 28.129%;\">\n<pre class=\"paragraph normal ng-star-inserted\" data-start-index=\"1874\"><span class=\"ng-star-inserted\" data-start-index=\"1874\">Isolation criteria assessment forms</span></pre>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 44.7917px;\">\n<td class=\"ng-star-inserted\" style=\"width: 13.3649%; height: 44.7917px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1939\"><strong class=\"ng-star-inserted\" data-start-index=\"1939\">Referral Initiation</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 58.4951%; height: 44.7917px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"1958\"><span class=\"ng-star-inserted\">Recognize indications for and initiate referral</span><span class=\"ng-star-inserted\" data-start-index=\"2005\"> to higher levels of care</span></div>\n</td>\n<td style=\"width: 28.129%;\">\n<pre class=\"paragraph normal ng-star-inserted\" data-start-index=\"1958\"><span class=\"ng-star-inserted\">Referral forms and outcomes</span></pre>\n</td>\n</tr>\n</tbody>\n</table>"
+                },
+                {
+                    title: "Treatment and Stabilization",
+                    content: "<p><strong>Treatment and Stabilization - </strong><span class=\"ng-star-inserted\" data-start-index=\"2061\">Rapid and appropriate rehydration is pivotal for preventing death in patients with AWD</span><span class=\"ng-star-inserted\" data-start-index=\"2147\">. Treatment is based on the degree of dehydration</span></p>\n<table class=\"ng-star-inserted\" style=\"width: 101.319%; height: 223.889px;\" data-start-index=\"2197\">\n<tbody>\n<tr class=\"ng-star-inserted\" style=\"height: 44.7778px;\">\n<td class=\"ng-star-inserted\" style=\"width: 16.6162%; height: 44.7778px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2225\"><strong class=\"ng-star-inserted\" data-start-index=\"2225\">Assessment &amp; Stabilization</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 83.3743%; height: 44.7778px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2251\"><strong class=\"ng-star-inserted\" data-start-index=\"2251\">Assessment of level of dehydration</strong><span class=\"ng-star-inserted\" data-start-index=\"2285\"> and </span><strong class=\"ng-star-inserted\" data-start-index=\"2290\">stabilization</strong><span class=\"ng-star-inserted\" data-start-index=\"2303\">.</span></div>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 22.3889px;\">\n<td class=\"ng-star-inserted\" style=\"width: 16.6162%; height: 22.3889px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2304\"><strong class=\"ng-star-inserted\" data-start-index=\"2304\">Rehydration</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 83.3743%; height: 22.3889px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2315\"><span class=\"ng-star-inserted\" data-start-index=\"2315\">Provide </span><strong class=\"ng-star-inserted\" data-start-index=\"2323\">oral rehydration treatment</strong><span class=\"ng-star-inserted\" data-start-index=\"2349\"> according to the level of dehydration (treatment plan A)</span><span class=\"ng-star-inserted\" data-start-index=\"2406\">.</span></div>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 22.3889px;\">\n<td class=\"ng-star-inserted\" style=\"width: 16.6162%; height: 22.3889px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2407\"><strong class=\"ng-star-inserted\" data-start-index=\"2407\">Education</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 83.3743%; height: 22.3889px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2416\"><strong class=\"ng-star-inserted\" data-start-index=\"2416\">Educate patients on the proper preparation of ORS solution</strong><span class=\"ng-star-inserted\" data-start-index=\"2474\">.</span></div>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 44.7778px;\">\n<td class=\"ng-star-inserted\" style=\"width: 16.6162%; height: 44.7778px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2475\"><strong class=\"ng-star-inserted\" data-start-index=\"2475\">Severe Dehydration</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 83.3743%; height: 44.7778px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2493\"><span class=\"ng-star-inserted\" data-start-index=\"2493\">For patients with severe dehydration (a medical emergency), staff should </span><strong class=\"ng-star-inserted\" data-start-index=\"2566\">initiate treatment, including intravenous (IV) rehydration, and refer to higher levels of care if indicated</strong></div>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 44.7778px;\">\n<td class=\"ng-star-inserted\" style=\"width: 16.6162%; height: 44.7778px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2674\"><strong class=\"ng-star-inserted\" data-start-index=\"2674\">Medication Distribution</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 83.3743%; height: 44.7778px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2697\"><strong class=\"ng-star-inserted\" data-start-index=\"2697\">Distribute ORS sachets and water treatment products</strong><button class=\"xap-inline-dialog citation-marker ng-star-inserted\" aria-haspopup=\"dialog\" aria-describedby=\"cdk-describedby-message-ng-1-15\" data-disabled=\"false\"></button><span class=\"ng-star-inserted\" data-start-index=\"2748\">.</span></div>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 22.3889px;\">\n<td class=\"ng-star-inserted\" style=\"width: 16.6162%; height: 22.3889px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2749\"><strong class=\"ng-star-inserted\" data-start-index=\"2749\">Referral SOPs</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 83.3743%; height: 22.3889px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2762\"><span class=\"ng-star-inserted\" data-start-index=\"2762\">Have </span><strong class=\"ng-star-inserted\" data-start-index=\"2767\">clear SOPs on initiating and receiving referrals</strong><span class=\"ng-star-inserted\" data-start-index=\"2815\">.</span></div>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 22.3889px;\">\n<td class=\"ng-star-inserted\" style=\"width: 16.6162%; height: 22.3889px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2816\"><strong class=\"ng-star-inserted\" data-start-index=\"2816\">Antimicrobials</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 83.3743%; height: 22.3889px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2830\"><span class=\"ng-star-inserted\" data-start-index=\"2830\">Provide </span><strong class=\"ng-star-inserted\" data-start-index=\"2838\">antimicrobial treatment for AWD if indicated, according to national protocol</strong></div>\n</td>\n</tr>\n<tr>\n<td class=\"ng-star-inserted\" style=\"width: 16.6162%;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2915\"><strong class=\"ng-star-inserted\" data-start-index=\"2915\">Psychosocial Support</strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 83.3743%;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2935\"><strong class=\"ng-star-inserted\" data-start-index=\"2935\">Provide temporary observation</strong><span class=\"ng-star-inserted\" data-start-index=\"2964\"> and </span><strong class=\"ng-star-inserted\" data-start-index=\"2969\">basic psychosocial support</strong></div>\n</td>\n</tr>\n</tbody>\n</table>"
+                },
+                {
+                    title: "Vulnerable Patient Management",
+                    content: "<p><strong>Vulnerable Patient Management</strong> - Clinical standards must be adapted for vulnerable populations encountered in the outpatient setting</p>\n<p><strong class=\"ng-star-inserted\" data-start-index=\"3128\">Child Health: </strong><span class=\"ng-star-inserted\">All treatment standards apply to the paediatric population and need to be adapted accordingly</span></p>\n<table class=\"ng-star-inserted\" style=\"width: 91.7457%; height: 103px;\" data-start-index=\"2197\">\n<tbody>\n<tr class=\"ng-star-inserted\" style=\"height: 44.7778px;\">\n<td class=\"ng-star-inserted\" style=\"width: 22.6472%; height: 44.7778px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2225\"><strong class=\"ng-star-inserted\" data-start-index=\"2225\"><span class=\"ng-star-inserted\">Zinc Supplementation</span></strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 77.3424%; height: 44.7778px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2251\"><span class=\"ng-star-inserted\">Provide zinc supplementation for children aged 6 months to 5 years according to national protocol</span></div>\n</td>\n</tr>\n<tr class=\"ng-star-inserted\" style=\"height: 22.3889px;\">\n<td class=\"ng-star-inserted\" style=\"width: 22.6472%; height: 22.3889px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2304\"><strong class=\"ng-star-inserted\" data-start-index=\"2304\"><span class=\"ng-star-inserted\">Guidance</span></strong></div>\n</td>\n<td class=\"ng-star-inserted\" style=\"width: 77.3424%; height: 22.3889px;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2315\"><span class=\"ng-star-inserted\" data-start-index=\"3365\">staff should </span><span class=\"ng-star-inserted\">follow the Emergency Triage Assessment and Treatment (ETAT) and Integrated Management of Childhood Illness (IMCI) guidance</span></div>\n</td>\n</tr>\n<tr>\n<td style=\"width: 22.6472%;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2304\"><strong class=\"ng-star-inserted\" data-start-index=\"2304\"><span class=\"ng-star-inserted\"><span class=\"ng-star-inserted\">Hypothermia</span></span></strong></div>\n</td>\n<td style=\"width: 77.3424%;\">\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"2315\"><span class=\"ng-star-inserted\" data-start-index=\"3365\">Prevent and manage hypothermia</span></div>\n</td>\n</tr>\n</tbody>\n</table>\n<p><strong class=\"ng-star-inserted\" data-start-index=\"3546\">Obstetric/Newborn Care:</strong><span class=\"ng-star-inserted\" data-start-index=\"3569\"> Teams should </span><strong class=\"ng-star-inserted\" data-start-index=\"3583\">promote breastfeeding and provide advice on safe breastfeeding during AWD infection</strong></p>\n<p><strong><span class=\"ng-star-inserted\"><span class=\"ng-star-inserted\">Malnutrition:</span> </span></strong><span class=\"ng-star-inserted\"><span class=\"ng-star-inserted\" data-start-index=\"3680\">Outpatient teams must </span></span><span class=\"ng-star-inserted\"><strong><span class=\"ng-star-inserted\">screen children from 6 months up to under age 5 using MUAC</span></strong><span class=\"ng-star-inserted\" data-start-index=\"3761\"> (Mid-Upper Arm Circumference)</span><span class=\"ng-star-inserted\" data-start-index=\"3791\">. They must </span><strong><span class=\"ng-star-inserted\">stabilize, hydrate, and monitor</span></strong><span class=\"ng-star-inserted\" data-start-index=\"3834\"> for complications (such as hypoglycaemia)</span><span class=\"ng-star-inserted\" data-start-index=\"3876\">. They need a </span><strong><span class=\"ng-star-inserted\">referral protocol</span></strong><span class=\"ng-star-inserted\" data-start-index=\"3907\"> for a therapeutic feeding centre in place for malnutrition management</span><span class=\"ng-star-inserted\" data-start-index=\"3977\">.</span></span></p>"
+                },
+                {
+                    title: "Laboratory and Diagnostic Testing",
+                    content: "<p><strong>Laboratory and Diagnostic Testing - </strong>Clinical management is guided by the degree of dehydration, not necessarily laboratory confirmation; however, testing protocols are necessary for surveillance and co-infection management</p>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"4201\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"4201\">IPC for Testing:</strong><span class=\"ng-star-inserted\" data-start-index=\"4217\"> All testing needs to be done using </span><strong class=\"ng-star-inserted\" data-start-index=\"4253\">appropriate PPE</strong><span class=\"ng-star-inserted\" data-start-index=\"4268\"> and all staff must strictly adhere to </span><strong class=\"ng-star-inserted\" data-start-index=\"4307\">standard and transmission-based precautions</strong><span class=\"ng-star-inserted\" data-start-index=\"4350\">.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"4351\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"4351\">Testing Procedures:</strong><span class=\"ng-star-inserted\" data-start-index=\"4370\"> Teams must perform </span><strong class=\"ng-star-inserted\" data-start-index=\"4390\">RDT for AWD</strong><span class=\"ng-star-inserted\" data-start-index=\"4401\"> and </span><strong class=\"ng-star-inserted\" data-start-index=\"4406\">RDTs for endemic coinfections</strong><span class=\"ng-star-inserted\" data-start-index=\"4435\">. They must also perform </span><strong class=\"ng-star-inserted\" data-start-index=\"4460\">blood glucose tests</strong><span class=\"ng-star-inserted\" data-start-index=\"4479\">.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"4480\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"4480\">Anaemia:</strong><span class=\"ng-star-inserted\" data-start-index=\"4488\"> Teams must </span><strong class=\"ng-star-inserted\" data-start-index=\"4500\">provide point of care (POC) Hb testing for children under 5 years with signs of severe anaemia</strong><span class=\"ng-star-inserted\" data-start-index=\"4594\">.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"4595\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"4595\">Sample Management:</strong><span class=\"ng-star-inserted\" data-start-index=\"4613\"> Teams are required to </span><strong class=\"ng-star-inserted\" data-start-index=\"4636\">safely collect, package, store and transport samples</strong><span class=\"ng-star-inserted\" data-start-index=\"4688\">. This includes collecting faecal specimens from suspected cases</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"4595\"><span class=\"ng-star-inserted\" data-start-index=\"4688\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"4753\">External Coordination:</strong><span class=\"ng-star-inserted\" data-start-index=\"4775\"> Outpatient SCTs must </span><strong class=\"ng-star-inserted\" data-start-index=\"4797\">establish collaboration with external laboratories, including RRMLs, for specific and differential diagnostics testing</strong></span></div>"
+                },
+                {
+                    title: "Co-Infections and Noncommunicable Diseases (NCDs)",
+                    content: "<p><strong>Co-Infections and Noncommunicable Diseases (NCDs) -&nbsp;</strong></p>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"4968\"><span class=\"ng-star-inserted\" data-start-index=\"4968\">Outpatient teams must rapidly assess and manage concurrent conditions:</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"5038\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"5038\">Co-infections:</strong><span class=\"ng-star-inserted\" data-start-index=\"5052\"> Teams must </span><strong class=\"ng-star-inserted\" data-start-index=\"5064\">recognize danger signs for endemic infectious diseases and immediately initiate isolation, if indicated</strong><span class=\"ng-star-inserted\" data-start-index=\"5167\">. They must </span><strong class=\"ng-star-inserted\" data-start-index=\"5179\">refer non-AWD patients with suspected infectious diseases to appropriate local health-care providers</strong><span class=\"ng-star-inserted\" data-start-index=\"5279\">. They should be familiar with </span><strong class=\"ng-star-inserted\" data-start-index=\"5310\">differential diagnoses</strong><span class=\"ng-star-inserted\" data-start-index=\"5332\"> of endemic infectious diseases in the deployment area, especially those requiring additional IPC measures</span><span class=\"ng-star-inserted\" data-start-index=\"5438\">.</span></div>\n<div class=\"paragraph normal ng-star-inserted\" data-start-index=\"5439\"><span class=\"ng-star-inserted\">&bull; </span><strong class=\"ng-star-inserted\" data-start-index=\"5439\">NCDs:</strong><span class=\"ng-star-inserted\" data-start-index=\"5444\"> Outpatient teams must </span><strong class=\"ng-star-inserted\" data-start-index=\"5467\">detect and manage acute exacerbations of chronic conditions</strong><span class=\"ng-star-inserted\" data-start-index=\"5526\">. They are responsible for </span><strong class=\"ng-star-inserted\" data-start-index=\"5553\">stabilizing, managing, and referring patients with exacerbations from NCDs requiring higher levels of care</strong><span class=\"ng-star-inserted\" data-start-index=\"5659\">.</span></div>"
+                }
+            ]
+        },
+        'logistic-standards': { 
+            title: 'LOGISTIC STANDARDS', 
+            icon: 'fa-truck', 
+            hasSubsections: true, 
+            weight: 15, 
+            enabled: true, 
+            subsections: [
+                {
+                    title: "Power and Fuel",
+                    content: "<p><strong>Power and Fuel</strong> - EMTs must ensure sufficient, safe, sustainable and context appropriate fuel, power supply and lighting for their facilities, clinical care and support services</p>"
+                },
+                {
+                    title: "Communications",
+                    content: "<p><strong>Communications</strong> - EMTs must have the ability to transmit by voice and data to the local and national coordination structures with at least one level of redundancy in case of failure.</p>"
+                },
+                {
+                    title: "Transportation and fleet",
+                    content: "<p><strong>Transportation and fleet</strong> - EMTs must effectively coordinate the transportation of equipment and personnel to the scene and throughout the deployment.</p>"
+                },
+                {
+                    title: "Food",
+                    content: "<p><strong>Food</strong> - EMTs must provide food requirements for all staff, inpatients and caregivers.</p>"
+                },
+                {
+                    title: "Warehouse Management",
+                    content: "<p><strong>Warehouse Management</strong> - EMT's have warehouse management processes and procedures that address preparedness requirements and an ability to respond in the field to manage consistent availability of supplies.</p>"
+                },
+                {
+                    title: "Pharmacy supply chain and medical stock Management",
+                    content: "<p><strong>Pharmacy supply chain and medical stock Management</strong> - EMTs are self-sufficient with enough pharmaceutical, medical consumables and medical equipment to deliver patient care.</p>"
+                },
+                {
+                    title: "Donation Management",
+                    content: "<p><strong>Donation Management</strong> - EMT's should have policies in place compliant with national and international standards, for anticipated donation of medical consumables, pharmaceuticals, equipment and/or their entire field facility.</p>"
+                },
+                {
+                    title: "Safety and security",
+                    content: "<p><strong>Safety and security</strong> - EMTs must demonstrate due diligence for the safety and security of their personnel and patients during deployment by putting in place management plans and practical measures appropriate to the operational context and communicate plans to those concerned.</p>"
+                },
+                {
+                    title: "Facility structure, environment & ventilation",
+                    content: "<p><strong>Facility structure, environment & ventilation</strong> - EMTs must be able to provide suitable and acceptable facilities for clinical care and staff needs.</p>"
+                },
+                {
+                    title: "Site assessment and planning",
+                    content: "<p><strong>Site assessment and planning</strong> - EMTs are able to assess possible site locations and adapt their configuration to local conditions, including the possibility to work within or reinforce existing health facilities.</p>"
+                },
+                {
+                    title: "Sequential build",
+                    content: "<p><strong>Sequential build</strong> - EMTs must prioritize the establishment of their facility in a way that areas and services necessary for urgent patient care are established first while the rest of the facility is completed, allowing certain functions to be operational before deployment is fully completed.</p>"
+                },
+                {
+                    title: "Mobilization",
+                    content: "<p><strong>Mobilization</strong> - EMTs must be able to mobilize in the shortest possible time ensuring general and institutional interventions to support their operational readiness status.</p>"
+                },
+                {
+                    title: "Demobilization",
+                    content: "<p><strong>Demobilization</strong> - EMTs should have plans and procedures for coordinated demobilization that maximizes the time of operation and minimizes disruption, supporting recovery of normal local health services and local environmental impacts.</p>"
+                }
+            ]
+        },
+        'wash-standards': { 
+            title: 'WASH STANDARDS', 
+            icon: 'fa-hand-holding-water', 
+            hasSubsections: true, 
+            weight: 15, 
+            enabled: true, 
+            subsections: [
+                {
+                    title: "Water Supply",
+                    content: "<p><strong>Water Supply</strong> - EMTs must ensure that patients, caregivers and staff have sufficient safe drinking water at all times, distributed through appropriate water collection points and facilities, to enable medical, personal hygiene, drinking, cooking, cleaning and laundry activities.</p>"
+                },
+                {
+                    title: "Hygiene",
+                    content: "<p><strong>Hygiene</strong> - EMTs should ensure that staff and patients can practice hand hygiene throughout the facility by promoting access to culturally appropriate materials and places for handwashing, as well as adequate access to showers, safe spaces and materials for personal and menstrual hygiene.</p>"
+                },
+                {
+                    title: "Environmental cleaning",
+                    content: "<p><strong>Environmental cleaning</strong> - EMT facilities and the immediate environment should always be kept clean and hygienic. EMTs should have documented procedures and appropriate materials for immediate, routine and terminal cleaning to reduce risks of infection.</p>"
+                },
+                {
+                    title: "Healthcare Waste Management",
+                    content: "<p><strong>Healthcare Waste Management</strong> - EMTs are responsible for the safe management and disposal of health waste generated at their facilities. Safe health-care waste management involves multiple steps: minimization, segregation, collection, storage, treatment and final disposal.</p>"
+                },
+                {
+                    title: "Sanitation",
+                    content: "<p><strong>Sanitation</strong> - EMTs must ensure that patients, staff and caregivers have accessible, appropriate, safe and sufficient facilities and well-documented procedures in place for management of excreta and grey and storm water to limit disease transmission.</p>"
+                },
+                {
+                    title: "Vector and Pest Control",
+                    content: "<p><strong>Vector and Pest Control</strong> - EMTs should ensure that patients, staff and caregivers are protected from disease vectors and pests by using appropriate equipment and methods adapted to the local context.</p>"
+                },
+                {
+                    title: "Dead Body Management",
+                    content: "<p><strong>Dead Body Management</strong> - EMTs need to be able to manage dead bodies in a way that is dignified, culturally appropriate, safe and according to public health practices.</p>"
+                }
+            ]
+        },
+        'summary': { 
+            title: 'SUMMARY', 
+            icon: 'fa-file-alt', 
+            hasSubsections: false, 
+            weight: 0, 
+            enabled: true,
+            content: document.getElementById('template-summary').innerHTML
+        }
+    };
+
+    let currentIconTarget = null;
+
+    function initIconPicker() {
+        const grid = document.getElementById('icon-grid');
+        grid.innerHTML = ICONS.map(icon => `<div class="icon-option" data-icon="${icon}"><i class="fas ${icon} fa-2x"></i></div>`).join('');
+        
+        grid.querySelectorAll('.icon-option').forEach(opt => {
+            opt.onclick = () => {
+                if(currentIconTarget) {
+                    const key = currentIconTarget.dataset.key;
+                    TOOL_CONFIG[key].icon = opt.dataset.icon;
+                    currentIconTarget.innerHTML = `<i class="fas ${opt.dataset.icon}"></i>`;
+                    closeIconPicker();
+                }
+            };
+        });
+
+        document.getElementById('icon-search').oninput = (e) => {
+            const search = e.target.value.toLowerCase();
+            grid.querySelectorAll('.icon-option').forEach(opt => {
+                opt.style.display = opt.dataset.icon.includes(search) ? 'block' : 'none';
+            });
+        };
+
+        document.getElementById('icon-picker-backdrop').onclick = closeIconPicker;
+    }
+
+    function openIconPicker(target) {
+        currentIconTarget = target;
+        document.getElementById('icon-picker-modal').style.display = 'block';
+        document.getElementById('icon-picker-backdrop').style.display = 'block';
+    }
+
+    function closeIconPicker() {
+        document.getElementById('icon-picker-modal').style.display = 'none';
+        document.getElementById('icon-picker-backdrop').style.display = 'none';
+        currentIconTarget = null;
+    }
+
+    function renderMakerUI() {
+        const sectionsContainer = document.getElementById('sections-accordion');
+        const weightsContainer = document.getElementById('weights-container');
+        sectionsContainer.innerHTML = '';
+        weightsContainer.innerHTML = '';
+
+        Object.entries(TOOL_CONFIG).forEach(([key, config]) => {
+            let contentEditor = '';
+            if (config.hasSubsections) {
+                contentEditor = `
+                    <h5><i class="fas fa-list me-2"></i>Standards / Subsections</h5>
+                    <div class="alert alert-info">
+                        <i class="fas fa-hand-paper me-2"></i>Drag to reorder subsections
+                    </div>
+                    <div id="subsections-${key}" class="subsections-sortable">${
+                        config.subsections.map((sub, index) => {
+                            return `
+                            <div class="subsection-item" data-id="${index}">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-grip-vertical drag-handle"></i>
+                                    <input type="text" class="form-control subsection-title-input me-2" 
+                                           value="${sub.title}" 
+                                           data-section="${key}" 
+                                           data-index="${index}">
+                                    <strong class="flex-grow-1" id="subsection-title-${key}-${index}">${sub.title}</strong>
+                                </div>
+                                <textarea id="editor-${key}-${index}">${sub.content}</textarea>
+                                <div class="subsection-controls">
+                                    <button class="btn btn-sm btn-outline-primary duplicate-item" title="Duplicate">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger remove-item" title="Remove">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>`;
+                        }).join('')
+                    }</div>
+                    <button class="btn btn-success mt-2 add-item" data-section="${key}">
+                        <i class="fas fa-plus me-2"></i>Add Standard
+                    </button>`;
+            } else {
+                contentEditor = `
+                    <div class="mb-3">
+                        <label class="form-label"><i class="fas fa-edit me-2"></i>Section Content</label>
+                        <textarea id="editor-${key}">${config.content}</textarea>
+                    </div>`;
+            }
+
+            const sectionHTML = `
+                <div class="accordion-item border-0 shadow-sm mb-3" id="accordion-item-${key}" style="border-radius: 12px; overflow: hidden;">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${key}">
+                            <div class="section-header-controls w-100">
+                                <span class="me-auto"><i class="fas ${config.icon} me-2"></i>${config.title}</span>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input section-enable-switch" type="checkbox" data-key="${key}" ${config.enabled ? 'checked' : ''}>
+                                    <label class="form-check-label">Enabled</label>
+                                </div>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="collapse-${key}" class="accordion-collapse collapse" data-bs-parent="#sections-accordion">
+                        <div class="accordion-body">
+                            <div class="row mb-3">
+                                <div class="col-md-8">
+                                    <label class="form-label"><i class="fas fa-heading me-2"></i>Section Title</label>
+                                    <input type="text" class="form-control section-title-input" data-key="${key}" value="${config.title}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label"><i class="fas fa-icons me-2"></i>Icon</label>
+                                    <button class="btn btn-outline-secondary w-100 icon-picker-btn" data-key="${key}" onclick="openIconPicker(this)">
+                                        <i class="fas ${config.icon}"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            ${contentEditor}
+                        </div>
+                    </div>
+                </div>`;
+            sectionsContainer.insertAdjacentHTML('beforeend', sectionHTML);
+
+            if (config.weight > 0) {
+                const weightHTML = `
+                    <div class="col-md-3 mb-3" id="weight-div-${key}">
+                        <label class="form-label"><strong>${config.title}</strong></label>
+                        <div class="input-group">
+                            <input type="number" class="form-control weight-input" data-key="${key}" value="${config.weight}" min="0" max="100" ${!config.enabled ? 'disabled' : ''}>
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>`;
+                weightsContainer.insertAdjacentHTML('beforeend', weightHTML);
+            }
+
+            if (config.hasSubsections) {
+                new Sortable(document.getElementById(`subsections-${key}`), {
+                    handle: '.drag-handle',
+                    animation: 150,
+                    ghostClass: 'dragging'
+                });
+            }
+        });
+        
+        setTimeout(() => initEditors(), 100);
+        updateWeightSum();
+        addEventListeners();
+    }
+
+    function initEditors(selector = 'textarea') {
+        tinymce.init({
+            selector: selector,
+            plugins: 'lists link table code help wordcount',
+            toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright | bullist numlist | link table | code | help',
+            height: 200,
+            menubar: false,
+            branding: false
+        });
+    }
+
+    function addEventListeners() {
+        // Subsection title editing
+        document.addEventListener('input', function(e) {
+            if (e.target.classList.contains('subsection-title-input')) {
+                const section = e.target.dataset.section;
+                const index = e.target.dataset.index;
+                const titleElement = document.getElementById(`subsection-title-${section}-${index}`);
+                if (titleElement) {
+                    titleElement.textContent = e.target.value;
+                }
+                // Update the title in TOOL_CONFIG
+                TOOL_CONFIG[section].subsections[index].title = e.target.value;
+            }
+        });
+
+        document.querySelectorAll('.add-item').forEach(btn => btn.onclick = e => {
+            const section = e.currentTarget.dataset.section;
+            const container = document.getElementById(`subsections-${section}`);
+            const newIndex = Date.now();
+            const newItem = document.createElement('div');
+            newItem.className = 'subsection-item';
+            newItem.dataset.id = newIndex;
+            newItem.innerHTML = `
+                <div class="d-flex align-items-center mb-2">
+                    <i class="fas fa-grip-vertical drag-handle"></i>
+                    <input type="text" class="form-control subsection-title-input me-2" 
+                           value="New Standard" 
+                           data-section="${section}" 
+                           data-index="${newIndex}">
+                    <strong class="flex-grow-1" id="subsection-title-${section}-${newIndex}">New Standard</strong>
+                </div>
+                <textarea id="editor-${section}-${newIndex}"><strong>New Standard</strong> - Description</textarea>
+                <div class="subsection-controls">
+                    <button class="btn btn-sm btn-outline-primary duplicate-item"><i class="fas fa-copy"></i></button>
+                    <button class="btn btn-sm btn-danger remove-item"><i class="fas fa-trash"></i></button>
+                </div>`;
+            container.appendChild(newItem);
+            
+            // Add to TOOL_CONFIG
+            TOOL_CONFIG[section].subsections.push({
+                title: "New Standard",
+                content: "<strong>New Standard</strong> - Description"
+            });
+            
+            newItem.querySelector('.remove-item').onclick = () => {
+                const itemIndex = Array.from(container.children).indexOf(newItem);
+                if(tinymce.get(`editor-${section}-${newIndex}`)) {
+                    tinymce.get(`editor-${section}-${newIndex}`).remove();
+                }
+                // Remove from TOOL_CONFIG
+                TOOL_CONFIG[section].subsections.splice(itemIndex, 1);
+                newItem.remove();
+            };
+
+            newItem.querySelector('.duplicate-item').onclick = () => {
+                const content = tinymce.get(`editor-${section}-${newIndex}`).getContent();
+                const title = newItem.querySelector('.subsection-title-input').value;
+                const dupIndex = Date.now() + 1;
+                const dupItem = document.createElement('div');
+                dupItem.className = 'subsection-item';
+                dupItem.innerHTML = newItem.innerHTML.replace(new RegExp(newIndex, 'g'), dupIndex);
+                container.appendChild(dupItem);
+                
+                // Add to TOOL_CONFIG
+                const itemIndex = Array.from(container.children).indexOf(newItem);
+                TOOL_CONFIG[section].subsections.splice(itemIndex + 1, 0, {
+                    title: title + " (Copy)",
+                    content: content
+                });
+                
+                initEditors(`#editor-${section}-${dupIndex}`);
+                setTimeout(() => {
+                    tinymce.get(`editor-${section}-${dupIndex}`).setContent(content);
+                    dupItem.querySelector('.subsection-title-input').value = title + " (Copy)";
+                    document.getElementById(`subsection-title-${section}-${dupIndex}`).textContent = title + " (Copy)";
+                }, 200);
+            };
+
+            initEditors(`#editor-${section}-${newIndex}`);
+        });
+
+        document.querySelectorAll('.remove-item').forEach(btn => {
+            if(!btn.onclick) {
+                btn.onclick = e => {
+                    const item = e.currentTarget.closest('.subsection-item');
+                    const container = item.parentElement;
+                    const section = container.id.replace('subsections-', '');
+                    const itemIndex = Array.from(container.children).indexOf(item);
+                    const editorId = item.querySelector('textarea').id;
+                    if(tinymce.get(editorId)) tinymce.get(editorId).remove();
+                    // Remove from TOOL_CONFIG
+                    TOOL_CONFIG[section].subsections.splice(itemIndex, 1);
+                    item.remove();
+                };
+            }
+        });
+
+        document.querySelectorAll('.weight-input').forEach(input => input.oninput = updateWeightSum);
+        
+        document.querySelectorAll('.section-enable-switch').forEach(toggle => toggle.onchange = e => {
+            const key = e.currentTarget.dataset.key;
+            const weightInput = document.querySelector(`.weight-input[data-key="${key}"]`);
+            if (weightInput) weightInput.disabled = !e.currentTarget.checked;
+            document.getElementById(`accordion-item-${key}`).style.opacity = e.currentTarget.checked ? '1' : '0.5';
+            updateWeightSum();
+        });
+
+        // Section title editing
+        document.querySelectorAll('.section-title-input').forEach(input => {
+            input.addEventListener('input', function() {
+                const key = this.dataset.key;
+                TOOL_CONFIG[key].title = this.value;
+                const weightLabel = document.querySelector(`#weight-div-${key} label`);
+                if (weightLabel) {
+                    weightLabel.innerHTML = `<strong>${this.value}</strong>`;
+                }
+            });
+        });
+    }
+
+    function updateWeightSum() {
+        const sum = Array.from(document.querySelectorAll('.weight-input:not(:disabled)')).reduce((acc, input) => acc + (parseInt(input.value) || 0), 0);
+        const alertDiv = document.getElementById('weight-sum-alert');
+        document.getElementById('weight-sum').textContent = sum;
+        alertDiv.classList.remove('alert-danger', 'alert-success', 'alert-warning');
+        if(sum === 100) {
+            alertDiv.classList.add('alert-success');
+        } else {
+            alertDiv.classList.add('alert-danger');
+        }
+    }
+
+    function saveConfigFile() {
+        const finalConfig = {};
+        document.querySelectorAll('.section-title-input').forEach(input => {
+            const key = input.dataset.key;
+            const enabled = document.querySelector(`.section-enable-switch[data-key="${key}"]`).checked;
+            if (!enabled) return;
+            
+            finalConfig[key] = {
+                ...TOOL_CONFIG[key],
+                title: input.value,
+                enabled: true,
+                weight: parseInt(document.querySelector(`.weight-input[data-key="${key}"]`)?.value || 0)
+            };
+
+            if (finalConfig[key].hasSubsections) {
+                finalConfig[key].subsections = Array.from(document.querySelectorAll(`#subsections-${key} .subsection-item`))
+                    .map(item => {
+                        const titleInput = item.querySelector('.subsection-title-input');
+                        const editor = tinymce.get(item.querySelector('textarea').id);
+                        const title = titleInput ? titleInput.value : 'Untitled';
+                        const content = editor ? editor.getContent() : '';
+                        return { title, content };
+                    });
+            } else {
+                const editor = tinymce.get(`editor-${key}`);
+                finalConfig[key].content = editor ? editor.getContent() : '';
+            }
+        });
+
+        const blob = new Blob([JSON.stringify(finalConfig, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'config.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        alert('Configuration saved successfully!');
+    }
+
+    document.getElementById('btn-save-config').onclick = saveConfigFile;
+    
+    document.getElementById('btn-preview').onclick = () => {
+        const preview = document.getElementById('preview-content');
+        preview.innerHTML = '<h3>Configuration Preview</h3>';
+        
+        Object.entries(TOOL_CONFIG).forEach(([key, config]) => {
+            if(!config.enabled) return;
+            preview.innerHTML += `
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5><i class="fas ${config.icon} me-2"></i>${config.title}</h5>
+                        <small class="text-muted">Weight: ${config.weight}%</small>
+                    </div>
+                    <div class="card-body">
+                        ${config.hasSubsections ? 
+                            '<ul>' + config.subsections.map(s => `<li>${s.title}</li>`).join('') + '</ul>' :
+                            '<div class="preview-content">' + (config.content || 'Custom content section') + '</div>'
+                        }
+                    </div>
+                </div>`;
+        });
+        
+        document.getElementById('preview-mode').style.display = 'block';
+    };
+
+    document.getElementById('btn-close-preview').onclick = () => {
+        document.getElementById('preview-mode').style.display = 'none';
+    };
+
+    document.getElementById('btn-import-config').onclick = () => {
+        document.getElementById('config-import-input').click();
+    };
+
+    document.getElementById('config-import-input').onchange = (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                TOOL_CONFIG = JSON.parse(evt.target.result);
+                renderMakerUI();
+                alert('Configuration imported successfully!');
+            } catch(err) {
+                alert('Error importing configuration: ' + err.message);
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initIconPicker();
+        renderMakerUI();
+    });
+    </script>
+</body>
+</html>

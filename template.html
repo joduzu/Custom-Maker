@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HID SCT Self-Assessment Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root{--primary:#0d6efd;--secondary:#6c757d;--success:#198754;--info:#0dcaf0;--warning:#ffc107;--danger:#dc3545;--light:#f8f9fa;--dark:#212529}
+        body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background-color:#f5f7f9;padding:0;margin:0}
+        .app-container{max-width:100%;margin:0 auto;background:white;box-shadow:0 0 15px rgba(0,0,0,.1);border-radius:0;overflow:hidden}
+        .sidebar{background-color:#2c3e50;color:white;height:100vh;position:sticky;top:0;padding-top:20px;overflow-y:auto}
+        .sidebar .nav-link{color:rgba(255,255,255,.8);border-left:3px solid transparent;padding:10px 15px;margin:5px 0;transition:all .3s}
+        .sidebar .nav-link:hover,.sidebar .nav-link.active{color:white;background-color:rgba(255,255,255,.1);border-left-color:var(--info)}
+        .sidebar .nav-link i{margin-right:10px;width:20px;text-align:center}
+        .main-content{padding:20px;height:100vh;overflow-y:auto}
+        .progress-sidebar{background-color:#f8f9fa;height:100vh;position:sticky;top:0;padding:20px 15px;overflow-y:auto;border-left:1px solid #e9ecef}
+        .progress-bar-container{background-color:#e9ecef;border-radius:5px;margin-bottom:20px;height:30px}
+        .progress-bar{height:100%;border-radius:5px;transition:width .5s ease}
+        .section-card{margin-bottom:20px;box-shadow:0 4px 6px rgba(0,0,0,.1);border:none;border-radius:8px}
+        .section-header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:20px;border-radius:8px 8px 0 0}
+        .section-header h5{margin:0;font-size:1.3rem;font-weight:600}
+        .score-display{font-size:1.1rem;font-weight:bold;color:white;background:rgba(255,255,255,.2);padding:8px 15px;border-radius:20px}
+        .comments-section{background-color:#f8f9fa;padding:15px;border-radius:0 0 8px 8px;border-top:1px solid #e9ecef}
+        .overview-card{text-align:center;padding:25px;border-radius:12px;margin-bottom:20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;box-shadow:0 6px 12px rgba(102,126,234,.3)}
+        .overview-card .card-value{font-size:2.5rem;font-weight:bold;margin:10px 0}
+        .overview-card i{opacity:.8}
+        
+        /* Enhanced Assessment Table Layout */
+        .assessment-container{display:flex;flex-direction:column;gap:25px;padding:20px}
+        .standard-item{background:white;border:1px solid #e9ecef;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.08);transition:all .3s}
+        .standard-item:hover{box-shadow:0 4px 16px rgba(0,0,0,.12);transform:translateY(-2px)}
+        .standard-header{font-size:1.05rem;font-weight:600;color:#2c3e50;margin-bottom:15px;padding-bottom:12px;border-bottom:2px solid #e9ecef}
+        .standard-description{color:#6c757d;font-size:.95rem;line-height:1.6;margin-bottom:15px}
+        .evidence-descriptors{background:#f8f9fa;padding:12px;border-radius:8px;margin-bottom:15px;font-size:.85rem;color:#495057}
+        .evidence-descriptors ul{margin:8px 0 0 0;padding-left:20px}
+        .evidence-descriptors li{margin-bottom:4px}
+        .score-evidence-grid{display:grid;grid-template-columns:180px 1fr;gap:15px;align-items:start}
+        .score-section{display:flex;flex-direction:column;gap:10px}
+        .score-select{font-weight:bold;text-align:center;min-width:100%;padding:10px;font-size:.95rem;border-radius:8px;border:2px solid #dee2e6}
+        .score-0{background:#fee2e2;color:#dc2626!important;border-color:#dc2626}
+        .score-1{background:#fed7aa;color:#ea580c!important;border-color:#ea580c}
+        .score-2{background:#fef3c7;color:#ca8a04!important;border-color:#ca8a04}
+        .score-3{background:#d1fae5;color:#059669!important;border-color:#059669}
+        .score-NA{background:#f3f4f6;color:#6b7280!important;border-color:#d1d5db}
+        .details-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+        .detail-item{display:flex;flex-direction:column}
+        .detail-item label{font-size:.85rem;font-weight:600;color:#495057;margin-bottom:6px}
+        .detail-item textarea{resize:vertical;min-height:80px;font-size:.9rem;border-radius:8px;border:1px solid #dee2e6;padding:10px}
+        .detail-item textarea:focus{border-color:#667eea;box-shadow:0 0 0 3px rgba(102,126,234,.1);outline:none}
+        
+        /* Organizational Details - Fit in one screen */
+        .org-details-container{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;max-height:calc(100vh - 200px);overflow-y:auto;padding:20px}
+        .org-card{background:white;border:1px solid #e9ecef;border-radius:12px;padding:25px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+        .org-card h5{color:#667eea;font-weight:600;margin-bottom:20px;padding-bottom:10px;border-bottom:2px solid #e9ecef}
+        .form-row{display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin-bottom:15px}
+        .form-group-compact{margin-bottom:12px}
+        .form-group-compact label{font-size:.9rem;font-weight:600;color:#495057;margin-bottom:6px;display:block}
+        .form-group-compact input{width:100%;padding:8px 12px;border:1px solid #dee2e6;border-radius:6px;font-size:.9rem}
+        .progress-overview-compact{grid-column:1/-1}
+        .progress-table-compact{font-size:.85rem}
+        .progress-table-compact th,.progress-table-compact td{padding:8px;border:1px solid #dee2e6}
+        
+        .notification{position:fixed;top:20px;right:20px;background:linear-gradient(135deg,#4ade80 0%,#22c55e 100%);color:white;padding:15px 25px;border-radius:8px;box-shadow:0 5px 20px rgba(0,0,0,.2);z-index:1000;animation:slideIn .3s ease}
+        .file-input{display:none}
+        #config-loader-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:#343a40;z-index:2000;display:flex;align-items:center;justify-content:center;color:white;text-align:center;flex-direction:column;transition:opacity .3s ease}
+        #drop-zone{border:3px dashed #6c757d;border-radius:20px;padding:50px;width:80%;max-width:600px;transition:background-color .2s ease,border-color .2s ease}
+        #drop-zone.dragover{background-color:rgba(255,255,255,.1);border-color:var(--primary)}
+        #app-wrapper{display:none}
+        
+        /* PDF Modal Styles */
+        .pdf-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);z-index:3000;display:none;align-items:center;justify-content:center;padding:20px}
+        .pdf-modal-content{background:white;padding:40px;border-radius:12px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+        .pdf-preview-section{margin:20px 0;padding:15px;background:#f8f9fa;border-radius:8px}
+        .color-picker{width:100%;height:45px;border:2px solid #dee2e6;border-radius:8px;cursor:pointer}
+        .logo-preview{max-width:200px;max-height:80px;margin-top:10px;border:1px solid #dee2e6;border-radius:4px;padding:5px}
+        
+        @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+        @keyframes fadeOut{from{opacity:1}to{opacity:0}}
+        
+        @media (max-width:991.98px){
+            .progress-sidebar{display:none}
+            .main-content,.sidebar{height:auto;position:relative}
+            .score-evidence-grid{grid-template-columns:1fr}
+            .details-grid{grid-template-columns:1fr}
+            .org-details-container{grid-template-columns:1fr}
+        }
+        @media (max-width:767.98px){
+            .sidebar{border-bottom:2px solid var(--primary)}
+            .form-row{grid-template-columns:1fr}
+        }
+    </style>
+</head>
+<body>
+    <div id="config-loader-overlay">
+        <div id="drop-zone">
+            <h1>Self-Assessment Tool</h1>
+            <p class="lead mt-3">Drag and drop your <code>config.json</code> file here</p>
+            <p>or</p>
+            <button id="load-config-btn" class="btn btn-primary btn-lg"><i class="fas fa-upload me-2"></i>Select a File</button>
+            <input type="file" id="config-file-input" class="file-input" accept=".json">
+        </div>
+    </div>
+
+    <div class="pdf-modal" id="pdf-modal">
+        <div class="pdf-modal-content">
+            <h3 class="mb-4"><i class="fas fa-file-pdf me-2"></i>PDF Export Settings</h3>
+            
+            <div class="mb-3">
+                <label class="form-label">Document Title</label>
+                <input type="text" class="form-control" id="pdf-title" value="HID SCT Assessment Report">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Document Subtitle</label>
+                <input type="text" class="form-control" id="pdf-subtitle" value="Minimum Standards Assessment">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Organization Logo (Upload or URL)</label>
+                <input type="file" class="form-control mb-2" id="pdf-logo-file" accept="image/*">
+                <input type="url" class="form-control" id="pdf-logo-url" placeholder="Or enter logo URL: https://example.com/logo.png">
+                <div id="logo-preview-container"></div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Primary Color</label>
+                    <input type="color" class="form-control color-picker" id="pdf-primary-color" value="#667eea">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Secondary Color</label>
+                    <input type="color" class="form-control color-picker" id="pdf-secondary-color" value="#764ba2">
+                </div>
+            </div>
+
+            <div class="pdf-preview-section">
+                <h6>Include in PDF:</h6>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="pdf-include-overview" checked>
+                    <label class="form-check-label">Overview & Progress</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="pdf-include-charts" checked>
+                    <label class="form-check-label">Charts & Visualizations</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="pdf-include-details" checked>
+                    <label class="form-check-label">Detailed Assessment Data</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="pdf-include-comments" checked>
+                    <label class="form-check-label">Comments & Observations</label>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end mt-4">
+                <button class="btn btn-secondary" id="btn-cancel-pdf">Cancel</button>
+                <button class="btn btn-primary" id="btn-generate-pdf">
+                    <i class="fas fa-file-pdf me-2"></i>Generate PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-wrapper">
+        <div class="app-container">
+            <div class="row g-0">
+                <div class="col-lg-2">
+                    <div class="sidebar">
+                        <h4 class="text-center mb-4">HID SCT Assessment</h4>
+                        <ul class="nav flex-column" id="sidebar-nav-container"></ul>
+                        <div class="mt-4 p-3">
+                            <div class="progress-bar-container">
+                                <div class="progress-bar bg-success" id="overallProgressBar" style="width:0%"></div>
+                            </div>
+                            <p class="mb-1">Overall Completion</p>
+                            <h5 class="text-center" id="overallProgressText">0%</h5>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-8">
+                    <div class="main-content">
+                        <div class="tab-content" id="tab-content-container"></div>
+                        <div class="d-flex justify-content-between mt-4 flex-wrap gap-2">
+                            <div>
+                                <button class="btn btn-outline-secondary" id="btn-import-excel">
+                                    <i class="fas fa-upload me-2"></i>Import Excel
+                                </button>
+                                <button class="btn btn-outline-secondary" id="btn-export-json">
+                                    <i class="fas fa-download me-2"></i>Export JSON
+                                </button>
+                            </div>
+                            <div>
+                                <button class="btn btn-outline-primary me-2" id="btn-save">
+                                    <i class="fas fa-save me-2"></i>Save Draft
+                                </button>
+                                <button class="btn btn-outline-success me-2" id="btn-export-excel-formatted">
+                                    <i class="fas fa-file-excel me-2"></i>Export Formatted Excel
+                                </button>
+                                <button class="btn btn-outline-danger me-2" id="btn-export-pdf">
+                                    <i class="fas fa-file-pdf me-2"></i>Export PDF
+                                </button>
+                                <button class="btn btn-outline-info me-2" id="btn-export-excel">
+                                    <i class="fas fa-file-excel me-2"></i>Export Excel
+                                </button>
+                                <button class="btn btn-success" id="btn-submit">
+                                    <i class="fas fa-check-circle me-2"></i>Submit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-2">
+                    <div class="progress-sidebar">
+                        <h5 class="mb-3">Progress Overview</h5>
+                        <div class="progress-bar-container mb-3">
+                            <div class="progress-bar bg-success" id="sidebarProgressBar" style="width:0%"></div>
+                        </div>
+                        <h5 class="text-center mb-4" id="sidebarProgressText">0%</h5>
+                        <canvas id="progress-chart" width="200" height="200"></canvas>
+                        <table class="table table-bordered mt-3 table-sm">
+                            <thead class="table-light">
+                                <tr><th>Section</th><th>%</th></tr>
+                            </thead>
+                            <tbody id="progressSidebarBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <input type="file" id="data-file-input" class="file-input" accept=".xlsx,.xls">
+        <input type="file" id="formatted-excel-input" class="file-input" accept=".xlsx,.xls">
+    </div>
+
+    <div id="templates" style="display:none;">
+        <!-- Templates are now loaded from the config -->
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    let CONFIG = {};
+    let SECTIONS_WITH_WEIGHT = [];
+    let progressChart = null;
+    let logoDataUrl = '';
+    let assessmentData = {
+        teamInfo: {},
+        scores: {},
+        evidence: {},
+        gaps: {},
+        actions: {},
+        comments: {},
+        summary: {}
+    };
+
+    // Initialize the application with the provided configuration
+    function initializeApp(config) {
+        CONFIG = config;
+        SECTIONS_WITH_WEIGHT = Object.entries(CONFIG)
+            .filter(([, c]) => c.weight > 0)
+            .map(([k, c]) => ({ name: c.title, weight: c.weight, section: k }));
+
+        const sidebarNav = document.getElementById('sidebar-nav-container');
+        const tabContent = document.getElementById('tab-content-container');
+        let sidebarLinks = '';
+        let tabPanes = '';
+
+        Object.entries(CONFIG).forEach(([key, configData]) => {
+            if (!configData.enabled) return;
+
+            sidebarLinks += `<li class="nav-item"><a class="nav-link" href="#${key}" data-bs-toggle="tab"><i class="fas ${configData.icon}"></i> ${configData.title}</a></li>`;
+            let content = '';
+
+            if (configData.hasSubsections) {
+                const standardItems = configData.subsections.map((sub, index) => {
+                    // Handle both string and object formats for subsections
+                    let title, description, fullContent;
+                    
+                    if (typeof sub === 'string') {
+                        // String format (like config(5).json)
+                        const cleanSub = sub.replace(/<strong>(.*?)<\/strong>/g, '$1');
+                        const parts = cleanSub.split(' - ');
+                        title = parts[0] || cleanSub;
+                        description = parts[1] || '';
+                        fullContent = sub;
+                    } else if (typeof sub === 'object') {
+                        // Object format (like config(4).json)
+                        title = sub.title || '';
+                        description = sub.content || sub.description || '';
+                        fullContent = sub.content || '';
+                    } else {
+                        title = 'Invalid subsection';
+                        description = '';
+                        fullContent = '';
+                    }
+                    
+                    const subId = title.replace(/<[^>]*>?/gm, '').toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, '-').slice(0, 50);
+
+                    return `<div class="standard-item">
+                        <div class="standard-header">${title}</div>
+                        ${description ? `<div class="standard-description">${description}</div>` : ''}
+                        <div class="score-evidence-grid">
+                            <div class="score-section">
+                                <label style="font-size:.85rem;font-weight:600;color:#495057;margin-bottom:8px;">Compliance Score</label>
+                                <select class="form-select score-select" data-section="${key}" data-item="${subId}">
+                                    <option value="0">0 - Not started</option>
+                                    <option value="1">1 - Initial</option>
+                                    <option value="2">2 - In progress</option>
+                                    <option value="3">3 - Completed</option>
+                                    <option value="NA">N/A</option>
+                                </select>
+                            </div>
+                            <div class="details-grid">
+                                <div class="detail-item">
+                                    <label>Evidence</label>
+                                    <textarea class="form-control evidence-input" data-section="${key}" data-item="${subId}" placeholder="Describe evidence..."></textarea>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Gaps</label>
+                                    <textarea class="form-control gaps-input" data-section="${key}" data-item="${subId}" placeholder="Identify gaps..."></textarea>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Actions</label>
+                                    <textarea class="form-control action-input" data-section="${key}" data-item="${subId}" placeholder="Plan actions..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                content = `<div class="section-card">
+                    <div class="section-header d-flex justify-content-between align-items-center">
+                        <h5>${configData.title} Compliance</h5>
+                        <div class="score-display" id="${key}Score">0% Complete</div>
+                    </div>
+                    <div class="assessment-container">${standardItems}</div>
+                    <div class="comments-section">
+                        <label for="${key}Comments" class="form-label fw-bold">
+                            <i class="fas fa-comment-dots me-2"></i>Mentor Comments & Observations
+                        </label>
+                        <textarea class="form-control" id="${key}Comments" rows="3" placeholder="Add comments and observations..."></textarea>
+                    </div>
+                </div>`;
+            } else {
+                // Use content from config or default template
+                content = configData.content || `<div class="alert alert-info">Content for ${configData.title}</div>`;
+            }
+
+            tabPanes += `<div class="tab-pane fade" id="${key}">${content}</div>`;
+        });
+
+        sidebarNav.innerHTML = sidebarLinks;
+        tabContent.innerHTML = tabPanes;
+
+        const firstNavLink = sidebarNav.querySelector('.nav-link');
+        if (firstNavLink) firstNavLink.classList.add('active');
+        const firstTabPane = tabContent.querySelector('.tab-pane');
+        if (firstTabPane) firstTabPane.classList.add('show', 'active');
+
+        document.getElementById('config-loader-overlay').style.display = 'none';
+        document.getElementById('app-wrapper').style.display = 'block';
+
+        const savedData = localStorage.getItem("hidSCTAssessment");
+        if (savedData) {
+            try {
+                assessmentData = JSON.parse(savedData);
+                loadSavedData();
+            } catch (e) {
+                console.error("Error loading saved data:", e);
+                initializeDefaultScores();
+            }
+        } else {
+            initializeDefaultScores();
+        }
+        updateProgress();
+        addAppEventListeners();
+        initProgressChart();
+    }
+
+    // Initialize the progress chart
+    function initProgressChart() {
+        const ctx = document.getElementById('progress-chart');
+        if (!ctx) return;
+        progressChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Completed', 'Remaining'],
+                datasets: [{
+                    data: [0, 100],
+                    backgroundColor: ['#667eea', '#e9ecef'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: true }
+                }
+            }
+        });
+    }
+
+    // Update the progress chart with the current completion percentage
+    function updateProgressChart(percentage) {
+        if (progressChart) {
+            progressChart.data.datasets[0].data = [percentage, 100 - percentage];
+            progressChart.update();
+        }
+    }
+
+    // Initialize default scores (0 for all items)
+    function initializeDefaultScores() {
+        document.querySelectorAll(".score-select").forEach(select => {
+            select.value = "0";
+            updateScoreBadge(select);
+        });
+        saveProgress();
+    }
+
+    // Load saved data from localStorage
+    function loadSavedData() {
+        if (assessmentData.teamInfo) {
+            Object.keys(assessmentData.teamInfo).forEach(key => {
+                const element = document.getElementById(key);
+                if (element) element.value = assessmentData.teamInfo[key];
+            });
+        }
+
+        document.querySelectorAll(".score-select").forEach(select => {
+            const key = select.dataset.section + "-" + select.dataset.item;
+            if (assessmentData.scores[key]) {
+                select.value = assessmentData.scores[key];
+                updateScoreBadge(select);
+                
+                // Find the corresponding textareas and set their values
+                const section = select.dataset.section;
+                const item = select.dataset.item;
+                
+                const evidenceInput = document.querySelector(`.evidence-input[data-section="${section}"][data-item="${item}"]`);
+                const gapsInput = document.querySelector(`.gaps-input[data-section="${section}"][data-item="${item}"]`);
+                const actionInput = document.querySelector(`.action-input[data-section="${section}"][data-item="${item}"]`);
+                
+                if (evidenceInput) evidenceInput.value = assessmentData.evidence[key] || "";
+                if (gapsInput) gapsInput.value = assessmentData.gaps[key] || "";
+                if (actionInput) actionInput.value = assessmentData.actions[key] || "";
+            }
+        });
+
+        if (assessmentData.comments) {
+            Object.keys(assessmentData.comments).forEach(key => {
+                const element = document.getElementById(key);
+                if (element) element.value = assessmentData.comments[key];
+            });
+        }
+
+        if (assessmentData.summary) {
+            Object.keys(assessmentData.summary).forEach(key => {
+                const element = document.getElementById(key);
+                if (element) element.value = assessmentData.summary[key];
+            });
+        }
+    }
+
+    // Save progress to localStorage
+    function saveProgress() {
+        // Save team info from all possible form fields
+        const teamInfoFields = ['teamName', 'region', 'country', 'mentorName', 'hqName', 'hqEmail', 'hqPhone', 'hqPosition', 'opsName', 'opsEmail', 'opsPhone', 'opsPosition'];
+        assessmentData.teamInfo = {};
+        teamInfoFields.forEach(field => {
+            const element = document.getElementById(field);
+            if (element) assessmentData.teamInfo[field] = element.value;
+        });
+
+        assessmentData.scores = {};
+        assessmentData.evidence = {};
+        assessmentData.gaps = {};
+        assessmentData.actions = {};
+
+        document.querySelectorAll(".score-select").forEach(select => {
+            const key = select.dataset.section + "-" + select.dataset.item;
+            if (select.value) assessmentData.scores[key] = select.value;
+            
+            const section = select.dataset.section;
+            const item = select.dataset.item;
+            
+            const evidenceInput = document.querySelector(`.evidence-input[data-section="${section}"][data-item="${item}"]`);
+            const gapsInput = document.querySelector(`.gaps-input[data-section="${section}"][data-item="${item}"]`);
+            const actionInput = document.querySelector(`.action-input[data-section="${section}"][data-item="${item}"]`);
+            
+            if (evidenceInput) assessmentData.evidence[key] = evidenceInput.value;
+            if (gapsInput) assessmentData.gaps[key] = gapsInput.value;
+            if (actionInput) assessmentData.actions[key] = actionInput.value;
+        });
+
+        assessmentData.comments = {};
+        SECTIONS_WITH_WEIGHT.forEach(section => {
+            const commentElement = document.getElementById(section.section + "Comments");
+            if (commentElement) assessmentData.comments[section.section + "Comments"] = commentElement.value;
+        });
+
+        // Save summary data from all possible fields
+        const summaryFields = ['strengths', 'criticalGaps', 'immediateActions', 'shortTermActions', 'mediumTermActions', 'technicalAssistance', 'trainingRequirements', 'resourceRequirements', 'nextSteps', 'completionDate', 'reviewedBy', 'mentorAssignment'];
+        assessmentData.summary = {};
+        summaryFields.forEach(field => {
+            const element = document.getElementById(field);
+            if (element) assessmentData.summary[field] = element.value;
+        });
+
+        localStorage.setItem("hidSCTAssessment", JSON.stringify(assessmentData));
+        showNotification("Progress saved successfully!");
+        updateProgress();
+    }
+
+    // Show a notification message
+    function showNotification(message) {
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        notification.innerHTML = `<i class="fas fa-check-circle me-2"></i> ${message}`;
+        document.body.appendChild(notification);
+
+        setTimeout(() => {
+            notification.style.animation = 'fadeOut 0.3s ease';
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 300);
+        }, 3000);
+    }
+
+    // Update the score badge based on the selected value
+    function updateScoreBadge(selectElement) {
+        // Remove existing classes
+        selectElement.classList.remove('score-0', 'score-1', 'score-2', 'score-3', 'score-NA');
+        
+        // Add the appropriate class based on value
+        selectElement.classList.add(`score-${selectElement.value}`);
+    }
+
+    // Update progress indicators
+    function updateProgress() {
+        let totalItems = 0;
+        let completedItems = 0;
+        const sectionProgress = {};
+
+        // Calculate progress for each section
+        Object.keys(CONFIG).forEach(sectionKey => {
+            if (!CONFIG[sectionKey].enabled || !CONFIG[sectionKey].hasSubsections) return;
+
+            const sectionItems = document.querySelectorAll(`#${sectionKey} .score-select`);
+            let sectionCompleted = 0;
+            
+            sectionItems.forEach(select => {
+                totalItems++;
+                if (select.value === "3") {
+                    completedItems++;
+                    sectionCompleted++;
+                }
+            });
+
+            const sectionPercentage = sectionItems.length > 0 ? Math.round((sectionCompleted / sectionItems.length) * 100) : 0;
+            sectionProgress[sectionKey] = sectionPercentage;
+            
+            // Update section score display
+            const scoreDisplay = document.getElementById(`${sectionKey}Score`);
+            if (scoreDisplay) {
+                scoreDisplay.textContent = `${sectionPercentage}% Complete`;
+            }
+        });
+
+        // Calculate overall progress
+        const overallPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+        
+        // Update overall progress indicators
+        document.getElementById('overallProgressBar').style.width = `${overallPercentage}%`;
+        document.getElementById('overallProgressText').textContent = `${overallPercentage}%`;
+        document.getElementById('sidebarProgressBar').style.width = `${overallPercentage}%`;
+        document.getElementById('sidebarProgressText').textContent = `${overallPercentage}%`;
+        
+        // Update progress chart
+        updateProgressChart(overallPercentage);
+        
+        // Update progress sidebar table
+        const progressSidebarBody = document.getElementById('progressSidebarBody');
+        let tableContent = '';
+        
+        SECTIONS_WITH_WEIGHT.forEach(section => {
+            const percentage = sectionProgress[section.section] || 0;
+            tableContent += `<tr><td>${section.name}</td><td>${percentage}%</td></tr>`;
+        });
+        
+        progressSidebarBody.innerHTML = tableContent;
+    }
+
+    // Export data to Excel
+    function exportToExcel() {
+        // Prepare data for export
+        const data = [];
+        
+        // Add headers
+        data.push(['Section', 'Item', 'Score', 'Evidence', 'Gaps', 'Actions']);
+        
+        // Add assessment data
+        Object.keys(CONFIG).forEach(sectionKey => {
+            if (!CONFIG[sectionKey].enabled || !CONFIG[sectionKey].hasSubsections) return;
+            
+            CONFIG[sectionKey].subsections.forEach(sub => {
+                // Handle both string and object formats
+                let title;
+                if (typeof sub === 'string') {
+                    const cleanSub = sub.replace(/<[^>]*>?/gm, '');
+                    const parts = cleanSub.split(' - ');
+                    title = parts[0] || cleanSub;
+                } else if (typeof sub === 'object') {
+                    title = sub.title || '';
+                } else {
+                    title = 'Invalid subsection';
+                }
+                
+                const subId = title.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, '-').slice(0, 50);
+                const key = sectionKey + "-" + subId;
+                
+                data.push([
+                    CONFIG[sectionKey].title,
+                    title,
+                    assessmentData.scores[key] || '0',
+                    assessmentData.evidence[key] || '',
+                    assessmentData.gaps[key] || '',
+                    assessmentData.actions[key] || ''
+                ]);
+            });
+        });
+        
+        // Create workbook and worksheet
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Assessment Data");
+        
+        // Generate and download the file
+        XLSX.writeFile(wb, "HID_SCT_Assessment_Data.xlsx");
+        showNotification("Excel file exported successfully!");
+    }
+
+    // Export formatted Excel
+    function exportToExcelFormatted() {
+        // Create a new workbook
+        const wb = XLSX.utils.book_new();
+        
+        // Add team information sheet
+        const teamInfoData = [
+            ['Team Information'],
+            ['Team Name', assessmentData.teamInfo.teamName || ''],
+            ['Region', assessmentData.teamInfo.region || ''],
+            ['Country', assessmentData.teamInfo.country || ''],
+            ['Mentor Name', assessmentData.teamInfo.mentorName || ''],
+            ['HQ Contact Name', assessmentData.teamInfo.hqName || ''],
+            ['HQ Contact Email', assessmentData.teamInfo.hqEmail || ''],
+            ['HQ Contact Phone', assessmentData.teamInfo.hqPhone || ''],
+            ['HQ Contact Position', assessmentData.teamInfo.hqPosition || ''],
+            ['Ops Contact Name', assessmentData.teamInfo.opsName || ''],
+            ['Ops Contact Email', assessmentData.teamInfo.opsEmail || ''],
+            ['Ops Contact Phone', assessmentData.teamInfo.opsPhone || ''],
+            ['Ops Contact Position', assessmentData.teamInfo.opsPosition || '']
+        ];
+        
+        const teamInfoWs = XLSX.utils.aoa_to_sheet(teamInfoData);
+        XLSX.utils.book_append_sheet(wb, teamInfoWs, "Team Information");
+        
+        // Add assessment data sheet with formatting
+        const assessmentDataSheet = [
+            ['SECTION', 'ITEM', 'SCORE', 'EVIDENCE', 'GAPS', 'ACTIONS']
+        ];
+        
+        Object.keys(CONFIG).forEach(sectionKey => {
+            if (!CONFIG[sectionKey].enabled || !CONFIG[sectionKey].hasSubsections) return;
+            
+            // Add section header
+            assessmentDataSheet.push([CONFIG[sectionKey].title, '', '', '', '', '']);
+            
+            // Add items for this section
+            CONFIG[sectionKey].subsections.forEach(sub => {
+                // Handle both string and object formats
+                let title;
+                if (typeof sub === 'string') {
+                    const cleanSub = sub.replace(/<[^>]*>?/gm, '');
+                    const parts = cleanSub.split(' - ');
+                    title = parts[0] || cleanSub;
+                } else if (typeof sub === 'object') {
+                    title = sub.title || '';
+                } else {
+                    title = 'Invalid subsection';
+                }
+                
+                const subId = title.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, '-').slice(0, 50);
+                const key = sectionKey + "-" + subId;
+                
+                assessmentDataSheet.push([
+                    '',
+                    title,
+                    assessmentData.scores[key] || '0',
+                    assessmentData.evidence[key] || '',
+                    assessmentData.gaps[key] || '',
+                    assessmentData.actions[key] || ''
+                ]);
+            });
+            
+            // Add empty row between sections
+            assessmentDataSheet.push(['', '', '', '', '', '']);
+        });
+        
+        const assessmentWs = XLSX.utils.aoa_to_sheet(assessmentDataSheet);
+        XLSX.utils.book_append_sheet(wb, assessmentWs, "Assessment Data");
+        
+        // Add comments sheet
+        const commentsData = [
+            ['Section', 'Comments']
+        ];
+        
+        SECTIONS_WITH_WEIGHT.forEach(section => {
+            commentsData.push([
+                section.name,
+                assessmentData.comments[section.section + "Comments"] || ''
+            ]);
+        });
+        
+        const commentsWs = XLSX.utils.aoa_to_sheet(commentsData);
+        XLSX.utils.book_append_sheet(wb, commentsWs, "Comments");
+        
+        // Generate and download the file
+        XLSX.writeFile(wb, "HID_SCT_Assessment_Formatted.xlsx");
+        showNotification("Formatted Excel file exported successfully!");
+    }
+
+    // Import data from Excel
+    function importFromExcel(file) {
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            
+            // Assuming the first sheet contains the data
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            
+            // Skip header row
+            for (let i = 1; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (row.length < 3) continue;
+                
+                const sectionName = row[0];
+                const itemName = row[1];
+                const score = row[2];
+                const evidence = row[3] || '';
+                const gaps = row[4] || '';
+                const actions = row[5] || '';
+                
+                // Find the section and item IDs
+                let sectionKey = '';
+                let itemId = '';
+                
+                Object.keys(CONFIG).forEach(key => {
+                    if (CONFIG[key].title === sectionName) {
+                        sectionKey = key;
+                        
+                        if (CONFIG[key].subsections) {
+                            CONFIG[key].subsections.forEach(sub => {
+                                let title;
+                                if (typeof sub === 'string') {
+                                    const cleanSub = sub.replace(/<[^>]*>?/gm, '');
+                                    const parts = cleanSub.split(' - ');
+                                    title = parts[0] || cleanSub;
+                                } else if (typeof sub === 'object') {
+                                    title = sub.title || '';
+                                } else {
+                                    title = '';
+                                }
+                                
+                                if (title === itemName) {
+                                    itemId = title.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, '-').slice(0, 50);
+                                }
+                            });
+                        }
+                    }
+                });
+                
+                if (sectionKey && itemId) {
+                    const fullKey = sectionKey + "-" + itemId;
+                    assessmentData.scores[fullKey] = score;
+                    assessmentData.evidence[fullKey] = evidence;
+                    assessmentData.gaps[fullKey] = gaps;
+                    assessmentData.actions[fullKey] = actions;
+                }
+            }
+            
+            // Update UI with imported data
+            loadSavedData();
+            showNotification("Data imported successfully from Excel!");
+        };
+        
+        reader.readAsArrayBuffer(file);
+    }
+
+    // Export data as JSON
+    function exportToJSON() {
+        const dataStr = JSON.stringify(assessmentData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'HID_SCT_Assessment_Data.json';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        showNotification("JSON data exported successfully!");
+    }
+
+    // Open PDF modal
+    function openPDFModal() {
+        document.getElementById('pdf-modal').style.display = 'flex';
+    }
+
+    // Close PDF modal
+    function closePDFModal() {
+        document.getElementById('pdf-modal').style.display = 'none';
+    }
+
+    // Generate PDF report
+    function generatePDF() {
+        const pdfTitle = document.getElementById('pdf-title').value;
+        const pdfSubtitle = document.getElementById('pdf-subtitle').value;
+        const primaryColor = document.getElementById('pdf-primary-color').value;
+        const secondaryColor = document.getElementById('pdf-secondary-color').value;
+        
+        const options = {
+            margin: [10, 10, 10, 10],
+            filename: `${pdfTitle.replace(/\s+/g, '_')}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        
+        // Customize the PDF content based on user selections
+        const includeOverview = document.getElementById('pdf-include-overview').checked;
+        const includeCharts = document.getElementById('pdf-include-charts').checked;
+        const includeDetails = document.getElementById('pdf-include-details').checked;
+        const includeComments = document.getElementById('pdf-include-comments').checked;
+        
+        // Create a temporary element for PDF generation
+        const pdfElement = document.createElement('div');
+        pdfElement.style.padding = '20px';
+        pdfElement.style.fontFamily = 'Arial, sans-serif';
+        
+        // Add title and subtitle
+        pdfElement.innerHTML = `
+            <h1 style="color: ${primaryColor}; text-align: center; margin-bottom: 10px;">${pdfTitle}</h1>
+            <h2 style="color: ${secondaryColor}; text-align: center; margin-bottom: 30px;">${pdfSubtitle}</h2>
+        `;
+        
+        // Add organization logo if available
+        if (logoDataUrl) {
+            pdfElement.innerHTML += `<div style="text-align: center; margin-bottom: 20px;"><img src="${logoDataUrl}" style="max-width: 200px; max-height: 80px;" /></div>`;
+        }
+        
+        // Add team information
+        pdfElement.innerHTML += `
+            <h3 style="color: ${primaryColor}; border-bottom: 2px solid ${primaryColor}; padding-bottom: 5px;">Team Information</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <tr><td style="padding: 8px; border: 1px solid #ddd; width: 30%;"><strong>Team Name:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${assessmentData.teamInfo.teamName || ''}</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Region:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${assessmentData.teamInfo.region || ''}</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Country:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${assessmentData.teamInfo.country || ''}</td></tr>
+                <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Mentor Name:</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${assessmentData.teamInfo.mentorName || ''}</td></tr>
+            </table>
+        `;
+        
+        // Add progress overview if selected
+        if (includeOverview) {
+            let totalItems = 0;
+            let completedItems = 0;
+            
+            Object.keys(CONFIG).forEach(sectionKey => {
+                if (!CONFIG[sectionKey].enabled || !CONFIG[sectionKey].hasSubsections) return;
+                
+                const sectionItems = document.querySelectorAll(`#${sectionKey} .score-select`);
+                totalItems += sectionItems.length;
+                
+                sectionItems.forEach(select => {
+                    if (select.value === "3") completedItems++;
+                });
+            });
+            
+            const overallPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+            
+            pdfElement.innerHTML += `
+                <h3 style="color: ${primaryColor}; border-bottom: 2px solid ${primaryColor}; padding-bottom: 5px;">Progress Overview</h3>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                    <div style="font-size: 18px; margin-bottom: 10px;"><strong>Overall Completion: ${overallPercentage}%</strong></div>
+                    <div style="background: #e9ecef; height: 30px; border-radius: 5px;">
+                        <div style="background: ${primaryColor}; height: 100%; width: ${overallPercentage}%; border-radius: 5px;"></div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Add assessment details if selected
+        if (includeDetails) {
+            pdfElement.innerHTML += `<h3 style="color: ${primaryColor}; border-bottom: 2px solid ${primaryColor}; padding-bottom: 5px;">Assessment Details</h3>`;
+            
+            Object.keys(CONFIG).forEach(sectionKey => {
+                if (!CONFIG[sectionKey].enabled || !CONFIG[sectionKey].hasSubsections) return;
+                
+                pdfElement.innerHTML += `<h4 style="color: ${secondaryColor}; margin-top: 20px;">${CONFIG[sectionKey].title}</h4>`;
+                
+                CONFIG[sectionKey].subsections.forEach(sub => {
+                    // Handle both string and object formats
+                    let title;
+                    if (typeof sub === 'string') {
+                        const cleanSub = sub.replace(/<[^>]*>?/gm, '');
+                        const parts = cleanSub.split(' - ');
+                        title = parts[0] || cleanSub;
+                    } else if (typeof sub === 'object') {
+                        title = sub.title || '';
+                    } else {
+                        title = 'Invalid subsection';
+                    }
+                    
+                    const subId = title.toLowerCase().replace(/[^\w\s]/gi, '').replace(/\s+/g, '-').slice(0, 50);
+                    const key = sectionKey + "-" + subId;
+                    const score = assessmentData.scores[key] || '0';
+                    const evidence = assessmentData.evidence[key] || '';
+                    const gaps = assessmentData.gaps[key] || '';
+                    const actions = assessmentData.actions[key] || '';
+                    
+                    pdfElement.innerHTML += `
+                        <div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px;">
+                            <div style="font-weight: bold; margin-bottom: 10px;">${title}</div>
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <tr>
+                                    <td style="padding: 5px; border: 1px solid #ddd; width: 15%;"><strong>Score:</strong></td>
+                                    <td style="padding: 5px; border: 1px solid #ddd;">${score}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 5px; border: 1px solid #ddd;"><strong>Evidence:</strong></td>
+                                    <td style="padding: 5px; border: 1px solid #ddd;">${evidence}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 5px; border: 1px solid #ddd;"><strong>Gaps:</strong></td>
+                                    <td style="padding: 5px; border: 1px solid #ddd;">${gaps}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 5px; border: 1px solid #ddd;"><strong>Actions:</strong></td>
+                                    <td style="padding: 5px; border: 1px solid #ddd;">${actions}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    `;
+                });
+            });
+        }
+        
+        // Add comments if selected
+        if (includeComments) {
+            pdfElement.innerHTML += `<h3 style="color: ${primaryColor}; border-bottom: 2px solid ${primaryColor}; padding-bottom: 5px;">Comments & Observations</h3>`;
+            
+            SECTIONS_WITH_WEIGHT.forEach(section => {
+                const comment = assessmentData.comments[section.section + "Comments"] || '';
+                if (comment) {
+                    pdfElement.innerHTML += `
+                        <div style="margin-bottom: 15px;">
+                            <div style="font-weight: bold; margin-bottom: 5px;">${section.name}</div>
+                            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px;">${comment}</div>
+                        </div>
+                    `;
+                }
+            });
+        }
+        
+        // Add footer with generation date
+        pdfElement.innerHTML += `
+            <div style="margin-top: 30px; padding-top: 10px; border-top: 1px solid #ddd; text-align: center; color: #6c757d; font-size: 12px;">
+                Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
+            </div>
+        `;
+        
+        // Generate PDF
+        html2pdf().set(options).from(pdfElement).save().then(() => {
+            showNotification("PDF generated successfully!");
+            closePDFModal();
+        });
+    }
+
+    // Add event listeners for the application
+    function addAppEventListeners() {
+        // Save button
+        document.getElementById('btn-save').addEventListener('click', saveProgress);
+        
+        // Export buttons
+        document.getElementById('btn-export-excel').addEventListener('click', exportToExcel);
+        document.getElementById('btn-export-excel-formatted').addEventListener('click', exportToExcelFormatted);
+        document.getElementById('btn-export-json').addEventListener('click', exportToJSON);
+        document.getElementById('btn-export-pdf').addEventListener('click', openPDFModal);
+        
+        // Import buttons
+        document.getElementById('btn-import-excel').addEventListener('click', () => {
+            document.getElementById('data-file-input').click();
+        });
+        
+        document.getElementById('data-file-input').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                importFromExcel(e.target.files[0]);
+            }
+        });
+        
+        // Submit button
+        document.getElementById('btn-submit').addEventListener('click', () => {
+            if (confirm('Are you sure you want to submit the assessment? This action cannot be undone.')) {
+                showNotification('Assessment submitted successfully!');
+                // Here you would typically send the data to a server
+            }
+        });
+        
+        // PDF modal buttons
+        document.getElementById('btn-cancel-pdf').addEventListener('click', closePDFModal);
+        document.getElementById('btn-generate-pdf').addEventListener('click', generatePDF);
+        
+        // Logo upload handling
+        document.getElementById('pdf-logo-file').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = function(event) {
+                    logoDataUrl = event.target.result;
+                    document.getElementById('logo-preview-container').innerHTML = 
+                        `<img src="${logoDataUrl}" class="logo-preview" alt="Logo Preview">`;
+                };
+                
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // Score select change events
+        document.addEventListener('change', (e) => {
+            if (e.target.classList.contains('score-select')) {
+                updateScoreBadge(e.target);
+                saveProgress();
+            }
+        });
+        
+        // Textarea input events (with debouncing)
+        let saveTimeout;
+        document.addEventListener('input', (e) => {
+            if (e.target.classList.contains('evidence-input') || 
+                e.target.classList.contains('gaps-input') || 
+                e.target.classList.contains('action-input') ||
+                e.target.id.includes('Comments')) {
+                
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(saveProgress, 1000);
+            }
+        });
+        
+        // Team info input events
+        const teamInfoFields = ['teamName', 'region', 'country', 'mentorName', 'hqName', 'hqEmail', 'hqPhone', 'hqPosition', 'opsName', 'opsEmail', 'opsPhone', 'opsPosition'];
+        teamInfoFields.forEach(field => {
+            const element = document.getElementById(field);
+            if (element) {
+                element.addEventListener('input', () => {
+                    clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(saveProgress, 1000);
+                });
+            }
+        });
+        
+        // Navigation click events
+        document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+            link.addEventListener('click', function() {
+                document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    }
+
+    // Initialize the application when the DOM is loaded
+    document.addEventListener("DOMContentLoaded", () => {
+        const dropZone = document.getElementById('drop-zone');
+        const configFileInput = document.getElementById('config-file-input');
+        
+        document.getElementById('load-config-btn').addEventListener('click', () => configFileInput.click());
+        
+        dropZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleConfigFile(e.dataTransfer.files[0]);
+            }
+        });
+        
+        configFileInput.addEventListener('change', e => {
+            if (e.target.files.length > 0) {
+                handleConfigFile(e.target.files[0]);
+            }
+        });
+
+        function handleConfigFile(file) {
+            if (file && (file.type === 'application/json' || file.name.endsWith('.json'))) {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    try {
+                        const config = JSON.parse(e.target.result);
+                        initializeApp(config);
+                    } catch (error) {
+                        alert('Error: Invalid JSON configuration file.');
+                        console.error('Config parsing error:', error);
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                alert('Please select a valid .json file.');
+            }
+        }
+    });
+    </script>
+</body>
+</html>
