@@ -186,6 +186,7 @@
                 <div class="col-lg-8">
                     <div class="main-content">
 
+main
                         <div class="d-flex align-items-center justify-content-end mb-3 gap-3 flex-wrap" id="modality-filter-container" style="display:none;">
                             <div class="d-flex align-items-center gap-2" id="profile-filter-wrapper" style="display:none;">
                                 <label for="profile-filter" class="text-muted small fw-semibold mb-0">Perfil SCT</label>
@@ -201,6 +202,8 @@
                             </div>
                         </div>
                         <div class="alert alert-info d-none" id="profile-summary-panel"></div>
+ codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+
 
                         <div class="d-flex align-items-center justify-content-end mb-3 gap-2" id="modality-filter-container" style="display:none;">
                             <label for="modality-filter" class="text-muted small fw-semibold mb-0">Filtrar por modalidad de despliegue</label>
@@ -209,6 +212,7 @@
                             </select>
                         </div>
 main
+ main
                         <div class="alert alert-warning d-none" id="modality-filter-empty">
                             <i class="fas fa-filter me-2"></i>No hay estándares visibles para la modalidad seleccionada. Ajusta el filtro para revisar otros requisitos.
                         </div>
@@ -276,12 +280,17 @@ main
     let progressChart = null;
     let logoDataUrl = '';
     let currentModalityFilter = 'all';
+codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+    let currentProfileFilter = 'all';
+    let SCT_PROFILES = [];
+
 
       
     let currentProfileFilter = 'all';
     let SCT_PROFILES = [];
 
       main
+ main
     let assessmentData = {
         teamInfo: {},
         scores: {},
@@ -292,8 +301,11 @@ main
         summary: {}
     };
 
+codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+
 
       
+main
     const escapeHtml = (unsafe = '') => unsafe
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -333,8 +345,11 @@ main
         };
     };
 
+codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+
 
   main
+ main
     const MODALITY_META = {
         'embedded': { icon: 'fa-hospital-user', badgeClass: 'bg-primary text-white' },
         'coupled': { icon: 'fa-link', badgeClass: 'bg-warning text-dark' },
@@ -346,11 +361,15 @@ main
         return `<div class="d-flex flex-wrap gap-2 mt-2">${modalities.map(modality => {
             const meta = MODALITY_META[modality] || {};
             const label = DEPLOYMENT_MODALITIES?.[modality]?.label || modality;
+codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+            return `<span class="badge ${meta.badgeClass || 'bg-secondary'}"><i class="fas ${meta.icon || 'fa-circle'} me-1"></i>${escapeHtml(label)}</span>`;
+
 
   
             return `<span class="badge ${meta.badgeClass || 'bg-secondary'}"><i class="fas ${meta.icon || 'fa-circle'} me-1"></i>${escapeHtml(label)}</span>`;
             return `<span class="badge ${meta.badgeClass || 'bg-secondary'}"><i class="fas ${meta.icon || 'fa-circle'} me-1"></i>${label}</span>`;
 main
+ main
         }).join('')}</div>`;
     }
 
@@ -364,6 +383,7 @@ main
                     <div class="card h-100 border-0 shadow-sm">
                         <div class="card-body">
 
+main
                             <h5 class="card-title"><i class="fas ${meta.icon || 'fa-circle'} me-2"></i>${escapeHtml(data.label || key)}</h5>
                             <p class="card-text text-muted">${formatMultiline(data.description || '')}</p>
                             <div class="mb-3">
@@ -385,6 +405,8 @@ main
                             <div>
                                 <h6 class="text-uppercase small text-muted">Apoyo requerido del establecimiento anfitrión</h6>
                                 <p class="small mb-0">${formatMultiline(data.hostFacilitySupport || '')}</p>
+ codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+
                             <h5 class="card-title"><i class="fas ${meta.icon || 'fa-circle'} me-2"></i>${data.label}</h5>
                             <p class="card-text text-muted">${data.description || ''}</p>
                             <div class="mb-3">
@@ -407,6 +429,7 @@ main
                                 <h6 class="text-uppercase small text-muted">Apoyo requerido del establecimiento anfitrión</h6>
                                 <p class="small mb-0">${data.hostFacilitySupport || ''}</p>
  main
+main
                             </div>
                         </div>
                     </div>
@@ -474,7 +497,10 @@ main
             </div>`;
     }
 
+ codex/propose-deployment-considerations-for-sct-tools-z8pu9e
 
+
+ main
     function buildProfilesTab() {
         if (!Array.isArray(SCT_PROFILES) || SCT_PROFILES.length === 0) return '';
 
@@ -537,26 +563,37 @@ main
         return active.filter((value, index, self) => self.indexOf(value) === index);
     }
 
+codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+
 main
+ main
     function applyModalityFilter() {
         const filterSelect = document.getElementById('modality-filter');
         const emptyAlert = document.getElementById('modality-filter-empty');
         if (!filterSelect) return;
+
+codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+        const activeModalities = getActiveModalitiesForFiltering();
 
  codex/propose-deployment-considerations-for-sct-tools-iyt36w
         const activeModalities = getActiveModalitiesForFiltering();
 
         const selected = currentModalityFilter;
 main
+main
         const items = document.querySelectorAll('.standard-item');
 
         items.forEach(item => {
             const modalities = (item.dataset.modalities || '').split(',').filter(Boolean);
+codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+            const matches = !activeModalities.length || modalities.length === 0 || activeModalities.some(mode => modalities.includes(mode));
+
 
             const matches = !activeModalities.length || modalities.length === 0 || activeModalities.some(mode => modalities.includes(mode));
 
             const matches = selected === 'all' || modalities.includes(selected) || modalities.length === 0;
  main
+main
             item.style.display = matches ? '' : 'none';
         });
 
@@ -570,11 +607,15 @@ main
 
         if (emptyAlert) {
             const activePane = document.querySelector('.tab-pane.active');
+ codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+            if (!activePane || activePane.id === 'deployment-modalities' || !activeModalities.length) {
+
 
             if (!activePane || activePane.id === 'deployment-modalities' || !activeModalities.length) {
 
             if (!activePane || activePane.id === 'deployment-modalities' || selected === 'all') {
 main
+ main
                 emptyAlert.classList.add('d-none');
             } else {
                 const hasVisibleInActive = Array.from(activePane.querySelectorAll('.standard-item')).some(item => item.style.display !== 'none');
@@ -582,7 +623,10 @@ main
             }
         }
 
+ codex/propose-deployment-considerations-for-sct-tools-z8pu9e
 
+
+ main
         updateProfileSummary();
     }
 
@@ -630,11 +674,19 @@ main
                 ${profile.coordinationNotes ? `<div><strong>Coordinación:</strong> ${formatMultiline(profile.coordinationNotes)}</div>` : ''}
             </div>`;
         panel.classList.remove('d-none');
+ codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+
+ main
  main
     }
 
     // Initialize the application with the provided configuration
     function initializeApp(config) {
+ codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+        const { deploymentModalities, sctProfiles, ...sectionConfig } = config;
+        DEPLOYMENT_MODALITIES = deploymentModalities || null;
+        SCT_PROFILES = Array.isArray(sctProfiles) ? sctProfiles.map(normalizeProfile) : [];
+
 
         const { deploymentModalities, sctProfiles, ...sectionConfig } = config;
         DEPLOYMENT_MODALITIES = deploymentModalities || null;
@@ -642,20 +694,88 @@ main
         const { deploymentModalities, ...sectionConfig } = config;
         DEPLOYMENT_MODALITIES = deploymentModalities || null;
  main
+ main
         CONFIG = sectionConfig;
         SECTIONS_WITH_WEIGHT = Object.entries(CONFIG)
             .filter(([, c]) => c.weight > 0)
             .map(([k, c]) => ({ name: c.title, weight: c.weight, section: k }));
 
         currentModalityFilter = 'all';
+ codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+        currentProfileFilter = 'all';
+
 
         currentProfileFilter = 'all';
+ main
  main
 
         const sidebarNav = document.getElementById('sidebar-nav-container');
         const tabContent = document.getElementById('tab-content-container');
         const filterContainer = document.getElementById('modality-filter-container');
         const filterSelect = document.getElementById('modality-filter');
+ codex/propose-deployment-considerations-for-sct-tools-z8pu9e
+        const profileWrapper = document.getElementById('profile-filter-wrapper');
+        const profileSelect = document.getElementById('profile-filter');
+        const modalityWrapper = document.getElementById('modality-filter-wrapper');
+        let sidebarLinks = '';
+        let tabPanes = '';
+
+        const showModalitiesFilter = !!DEPLOYMENT_MODALITIES;
+        const showProfilesFilter = SCT_PROFILES.length > 0;
+
+        if (filterContainer) {
+            filterContainer.style.display = (showModalitiesFilter || showProfilesFilter) ? 'flex' : 'none';
+        }
+        if (profileWrapper) profileWrapper.style.display = showProfilesFilter ? 'flex' : 'none';
+        if (modalityWrapper) modalityWrapper.style.display = showModalitiesFilter ? 'flex' : 'none';
+
+        if (showModalitiesFilter && filterSelect) {
+            const options = Object.entries(DEPLOYMENT_MODALITIES).map(([key, data]) => `<option value="${key}">${escapeHtml(data.label || key)}</option>`).join('');
+            filterSelect.innerHTML = `<option value="all">Todas las modalidades</option>${options}`;
+            filterSelect.value = currentModalityFilter;
+            filterSelect.onchange = (event) => {
+                currentModalityFilter = event.target.value;
+                applyModalityFilter();
+            };
+        } else if (filterSelect) {
+            filterSelect.innerHTML = '<option value="all">Todas las modalidades</option>';
+            filterSelect.onchange = null;
+        }
+
+        if (showProfilesFilter && profileSelect) {
+            const options = SCT_PROFILES.map(profile => `<option value="${profile.id}">${escapeHtml(profile.name || 'Perfil sin título')}</option>`).join('');
+            profileSelect.innerHTML = `<option value="all">Todos los perfiles</option>${options}`;
+            profileSelect.value = currentProfileFilter;
+            profileSelect.onchange = (event) => {
+                currentProfileFilter = event.target.value;
+                if (currentProfileFilter !== 'all' && currentModalityFilter !== 'all') {
+                    const selectedProfile = SCT_PROFILES.find(item => item.id === currentProfileFilter);
+                    if (!selectedProfile || !selectedProfile.modalities.includes(currentModalityFilter)) {
+                        currentModalityFilter = 'all';
+                        if (filterSelect) filterSelect.value = 'all';
+                    }
+                }
+                applyModalityFilter();
+            };
+        } else if (profileSelect) {
+            profileSelect.innerHTML = '<option value="all">Todos los perfiles</option>';
+            profileSelect.onchange = null;
+        }
+
+        if (!showModalitiesFilter) {
+            const emptyAlert = document.getElementById('modality-filter-empty');
+            if (emptyAlert) emptyAlert.classList.add('d-none');
+        }
+
+        if (SCT_PROFILES.length) {
+            sidebarLinks += `<li class="nav-item"><a class="nav-link" href="#sct-profiles" data-bs-toggle="tab"><i class="fas fa-people-group"></i> SCT Profiles</a></li>`;
+            tabPanes += buildProfilesTab();
+        }
+
+        if (DEPLOYMENT_MODALITIES) {
+            sidebarLinks += `<li class="nav-item"><a class="nav-link" href="#deployment-modalities" data-bs-toggle="tab"><i class="fas fa-sitemap"></i> Modalities</a></li>`;
+            tabPanes += buildModalitiesTab();
+
 
         const profileWrapper = document.getElementById('profile-filter-wrapper');
         const profileSelect = document.getElementById('profile-filter');
@@ -744,6 +864,7 @@ main
                 filterSelect.onchange = null;
             }
 main
+ main
         }
 
         Object.entries(CONFIG).forEach(([key, configData]) => {
