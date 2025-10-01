@@ -185,6 +185,15 @@
                 </div>
                 <div class="col-lg-8">
                     <div class="main-content">
+                        <div class="d-flex align-items-center justify-content-end mb-3 gap-2" id="modality-filter-container" style="display:none;">
+                            <label for="modality-filter" class="text-muted small fw-semibold mb-0">Filtrar por modalidad de despliegue</label>
+                            <select class="form-select form-select-sm w-auto" id="modality-filter">
+                                <option value="all">Todas las modalidades</option>
+                            </select>
+                        </div>
+                        <div class="alert alert-warning d-none" id="modality-filter-empty">
+                            <i class="fas fa-filter me-2"></i>No hay estándares visibles para la modalidad seleccionada. Ajusta el filtro para revisar otros requisitos.
+                        </div>
                         <div class="tab-content" id="tab-content-container"></div>
                         <div class="d-flex justify-content-between mt-4 flex-wrap gap-2">
                             <div>
@@ -248,6 +257,7 @@
     let SECTIONS_WITH_WEIGHT = [];
     let progressChart = null;
     let logoDataUrl = '';
+    let currentModalityFilter = 'all';
     let assessmentData = {
         teamInfo: {},
         scores: {},
@@ -292,9 +302,17 @@
                                 <h6 class="text-uppercase small text-muted">WASH / IPC</h6>
                                 <p class="small mb-0">${data.washConsiderations || ''}</p>
                             </div>
-                            <div>
+                            <div class="mb-3">
                                 <h6 class="text-uppercase small text-muted">Clinical Focus</h6>
                                 <p class="small mb-0">${data.clinicalConsiderations || ''}</p>
+                            </div>
+                            <div class="mb-3">
+                                <h6 class="text-uppercase small text-muted">Paquete aportado por el SCT</h6>
+                                <p class="small mb-0">${data.teamResponsibilities || ''}</p>
+                            </div>
+                            <div>
+                                <h6 class="text-uppercase small text-muted">Apoyo requerido del establecimiento anfitrión</h6>
+                                <p class="small mb-0">${data.hostFacilitySupport || ''}</p>
                             </div>
                         </div>
                     </div>
@@ -362,6 +380,39 @@
             </div>`;
     }
 
+    function applyModalityFilter() {
+        const filterSelect = document.getElementById('modality-filter');
+        const emptyAlert = document.getElementById('modality-filter-empty');
+        if (!filterSelect) return;
+
+        const selected = currentModalityFilter;
+        const items = document.querySelectorAll('.standard-item');
+
+        items.forEach(item => {
+            const modalities = (item.dataset.modalities || '').split(',').filter(Boolean);
+            const matches = selected === 'all' || modalities.includes(selected) || modalities.length === 0;
+            item.style.display = matches ? '' : 'none';
+        });
+
+        document.querySelectorAll('.tab-pane .section-card').forEach(card => {
+            if (card.closest('#deployment-modalities')) return;
+            const standards = card.querySelectorAll('.standard-item');
+            if (!standards.length) return;
+            const hasVisible = Array.from(standards).some(item => item.style.display !== 'none');
+            card.style.display = hasVisible ? '' : 'none';
+        });
+
+        if (emptyAlert) {
+            const activePane = document.querySelector('.tab-pane.active');
+            if (!activePane || activePane.id === 'deployment-modalities' || selected === 'all') {
+                emptyAlert.classList.add('d-none');
+            } else {
+                const hasVisibleInActive = Array.from(activePane.querySelectorAll('.standard-item')).some(item => item.style.display !== 'none');
+                emptyAlert.classList.toggle('d-none', hasVisibleInActive);
+            }
+        }
+    }
+
     // Initialize the application with the provided configuration
     function initializeApp(config) {
         const { deploymentModalities, ...sectionConfig } = config;
@@ -371,14 +422,36 @@
             .filter(([, c]) => c.weight > 0)
             .map(([k, c]) => ({ name: c.title, weight: c.weight, section: k }));
 
+        currentModalityFilter = 'all';
+
         const sidebarNav = document.getElementById('sidebar-nav-container');
         const tabContent = document.getElementById('tab-content-container');
+        const filterContainer = document.getElementById('modality-filter-container');
+        const filterSelect = document.getElementById('modality-filter');
         let sidebarLinks = '';
         let tabPanes = '';
 
         if (DEPLOYMENT_MODALITIES) {
             sidebarLinks += `<li class="nav-item"><a class="nav-link" href="#deployment-modalities" data-bs-toggle="tab"><i class="fas fa-sitemap"></i> Modalities</a></li>`;
             tabPanes += buildModalitiesTab();
+            if (filterContainer) filterContainer.style.display = 'flex';
+            if (filterSelect) {
+                const options = Object.entries(DEPLOYMENT_MODALITIES).map(([key, data]) => `<option value="${key}">${data.label || key}</option>`).join('');
+                filterSelect.innerHTML = `<option value="all">Todas las modalidades</option>${options}`;
+                filterSelect.onchange = (event) => {
+                    currentModalityFilter = event.target.value;
+                    applyModalityFilter();
+                };
+            }
+        }
+        else if (filterContainer) {
+            filterContainer.style.display = 'none';
+            const emptyAlert = document.getElementById('modality-filter-empty');
+            if (emptyAlert) emptyAlert.classList.add('d-none');
+            if (filterSelect) {
+                filterSelect.innerHTML = '<option value="all">Todas las modalidades</option>';
+                filterSelect.onchange = null;
+            }
         }
 
         Object.entries(CONFIG).forEach(([key, configData]) => {
@@ -418,7 +491,7 @@
                             : (DEPLOYMENT_MODALITIES ? Object.keys(DEPLOYMENT_MODALITIES) : []));
                     const subBadges = getModalityBadgeHtml(subModalities);
 
-                    return `<div class="standard-item">
+                    return `<div class="standard-item" data-modalities="${Array.isArray(subModalities) ? subModalities.join(',') : ''}">
                         <div class="standard-header">${title}</div>
                         ${subBadges}
                         ${description ? `<div class="standard-description">${description}</div>` : ''}
@@ -481,6 +554,8 @@
         if (firstNavLink) firstNavLink.classList.add('active');
         const firstTabPane = tabContent.querySelector('.tab-pane');
         if (firstTabPane) firstTabPane.classList.add('show', 'active');
+
+        applyModalityFilter();
 
         document.getElementById('config-loader-overlay').style.display = 'none';
         document.getElementById('app-wrapper').style.display = 'block';
@@ -1156,17 +1231,23 @@
             if (e.target.files.length > 0) {
                 const file = e.target.files[0];
                 const reader = new FileReader();
-                
+
                 reader.onload = function(event) {
                     logoDataUrl = event.target.result;
-                    document.getElementById('logo-preview-container').innerHTML = 
+                    document.getElementById('logo-preview-container').innerHTML =
                         `<img src="${logoDataUrl}" class="logo-preview" alt="Logo Preview">`;
                 };
-                
+
                 reader.readAsDataURL(file);
             }
         });
-        
+
+        document.querySelectorAll('a[data-bs-toggle="tab"]').forEach(link => {
+            link.addEventListener('shown.bs.tab', () => {
+                applyModalityFilter();
+            });
+        });
+
         // Score select change events
         document.addEventListener('change', (e) => {
             if (e.target.classList.contains('score-select')) {

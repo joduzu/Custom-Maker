@@ -340,21 +340,27 @@
             description: 'The SCT integrates into an existing facility and aligns with host governance and patient pathways.',
             operationalSupport: 'Host facility covers infrastructure, utilities, waste management and non-specialized logistics while the SCT provides specialty equipment, drugs and consumables.',
             washConsiderations: 'Use host WASH and IPC systems, confirming isolation capacity, decontamination workflows and water quality before activating services.',
-            clinicalConsiderations: 'Synchronize specialized protocols, documentation and referral triggers with host teams to avoid duplicating processes.'
+            clinicalConsiderations: 'Synchronize specialized protocols, documentation and referral triggers with host teams to avoid duplicating processes.',
+            teamResponsibilities: 'Clarify which specialist staff, devices and pharmaceuticals the SCT will always provide when embedded.',
+            hostFacilitySupport: 'Document which infrastructure, utilities and ancillary services the host must guarantee before arrival.'
         },
         'coupled': {
             label: 'Coupled',
             description: 'The SCT deploys additional infrastructure on the host site and shares select support services.',
             operationalSupport: 'Define which support services remain with the host and which are provided by the SCT (power, logistics, security, waste). Establish joint supply and maintenance routines.',
             washConsiderations: 'Plan for shared water and sanitation usage, scaling storage, treatment and waste streams for the combined footprint, and align hygiene promotion messages.',
-            clinicalConsiderations: 'Clarify triage interfaces, patient flow, data sharing and referral pathways between the temporary SCT structures and the host facility.'
+            clinicalConsiderations: 'Clarify triage interfaces, patient flow, data sharing and referral pathways between the temporary SCT structures and the host facility.',
+            teamResponsibilities: 'Describe mobile assets, staffing and clinical functions that the SCT brings to bridge gaps on the shared site.',
+            hostFacilitySupport: 'List site services and operational enablers that must remain accessible from the host while coupled.'
         },
         'self-sustained': {
             label: 'Self-sustained',
             description: 'The SCT operates from fully self-sufficient facilities separate from any host infrastructure.',
             operationalSupport: 'The SCT manages all site services including power generation, accommodation, logistics, waste, security and resupply throughout deployment duration.',
             washConsiderations: 'Deploy self-contained water, sanitation and waste systems with surge capacity and stringent IPC controls for high-risk procedures.',
-            clinicalConsiderations: 'Ensure comprehensive clinical capability (stabilization, referral coordination, pharmacy, diagnostics) and continuity planning without host facility support.'
+            clinicalConsiderations: 'Ensure comprehensive clinical capability (stabilization, referral coordination, pharmacy, diagnostics) and continuity planning without host facility support.',
+            teamResponsibilities: 'Outline the full operational and clinical package the SCT delivers independently, including contingencies.',
+            hostFacilitySupport: 'Specify only the critical coordination touchpoints still required from national or local systems.'
         }
     };
 
@@ -362,7 +368,31 @@
 
     const deepClone = (value) => JSON.parse(JSON.stringify(value));
 
-    let DEPLOYMENT_MODALITIES = deepClone(DEFAULT_MODALITIES);
+    const normalizeDeploymentModalities = (modalities = {}) => {
+        const normalized = {};
+        const keys = new Set([
+            ...Object.keys(DEFAULT_MODALITIES),
+            ...Object.keys(modalities || {})
+        ]);
+
+        keys.forEach(key => {
+            normalized[key] = {
+                label: DEFAULT_MODALITIES[key]?.label || modalities[key]?.label || key,
+                description: '',
+                operationalSupport: '',
+                washConsiderations: '',
+                clinicalConsiderations: '',
+                teamResponsibilities: '',
+                hostFacilitySupport: '',
+                ...(DEFAULT_MODALITIES[key] || {}),
+                ...(modalities[key] || {})
+            };
+        });
+
+        return normalized;
+    };
+
+    let DEPLOYMENT_MODALITIES = normalizeDeploymentModalities();
     let hasDocumentInputListener = false;
     let hasModalityChangeListener = false;
 
@@ -409,16 +439,24 @@
                         <label class="form-label fw-semibold">WASH / IPC</label>
                         <textarea class="form-control modality-field" rows="3" data-modality="${key}" data-field="washConsiderations" placeholder="Critical WASH & IPC considerations"></textarea>
                     </div>
-                    <div>
+                    <div class="mb-3">
                         <label class="form-label fw-semibold">Clinical Focus</label>
                         <textarea class="form-control modality-field" rows="3" data-modality="${key}" data-field="clinicalConsiderations" placeholder="Clinical management implications"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">What the SCT provides</label>
+                        <textarea class="form-control modality-field" rows="3" data-modality="${key}" data-field="teamResponsibilities" placeholder="Critical assets, personnel and services delivered by the SCT"></textarea>
+                    </div>
+                    <div>
+                        <label class="form-label fw-semibold">Support expected from host facilities</label>
+                        <textarea class="form-control modality-field" rows="3" data-modality="${key}" data-field="hostFacilitySupport" placeholder="Infrastructure, services or coordination that must be in place"></textarea>
                     </div>
                 </div>
             </div>
         `).join('');
 
         Object.entries(DEPLOYMENT_MODALITIES).forEach(([key, data]) => {
-            ['description', 'operationalSupport', 'washConsiderations', 'clinicalConsiderations'].forEach(field => {
+            ['description', 'operationalSupport', 'washConsiderations', 'clinicalConsiderations', 'teamResponsibilities', 'hostFacilitySupport'].forEach(field => {
                 const textarea = container.querySelector(`.modality-field[data-modality="${key}"][data-field="${field}"]`);
                 if (textarea) textarea.value = data[field] || '';
             });
@@ -531,6 +569,8 @@
                                             <li><strong>Operational / Logistics:</strong> ${data.operationalSupport || ''}</li>
                                             <li><strong>WASH & IPC:</strong> ${data.washConsiderations || ''}</li>
                                             <li><strong>Clinical focus:</strong> ${data.clinicalConsiderations || ''}</li>
+                                            <li><strong>SCT provides:</strong> ${data.teamResponsibilities || ''}</li>
+                                            <li><strong>Host support required:</strong> ${data.hostFacilitySupport || ''}</li>
                                         </ul>
                                     </div>
                                 </div>`;
@@ -845,6 +885,7 @@
     }
 
     function renderMakerUI() {
+        DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(DEPLOYMENT_MODALITIES);
         ensureModalitiesStructure(TOOL_CONFIG);
         renderModalitiesUI();
         const sectionsContainer = document.getElementById('sections-accordion');
@@ -1100,6 +1141,7 @@
     }
 
     function saveConfigFile() {
+        DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(DEPLOYMENT_MODALITIES);
         const finalConfig = {};
         document.querySelectorAll('.section-title-input').forEach(input => {
             const key = input.dataset.key;
@@ -1213,7 +1255,7 @@
             try {
                 const importedConfig = JSON.parse(evt.target.result);
                 if (importedConfig.deploymentModalities) {
-                    DEPLOYMENT_MODALITIES = deepClone(importedConfig.deploymentModalities);
+                    DEPLOYMENT_MODALITIES = normalizeDeploymentModalities(importedConfig.deploymentModalities);
                     delete importedConfig.deploymentModalities;
                 }
                 TOOL_CONFIG = importedConfig;
