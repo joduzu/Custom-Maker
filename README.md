@@ -1,10 +1,11 @@
 # Custom Maker Toolkit
 
-This repository contains three standalone HTML tools:
+This repository contains four standalone HTML tools:
 
 - **index.html** – Landing page for the toolkit.
 - **maker.html** – Configuration maker used to author SCT deployment modality guidance and export `config.json` files.
 - **template.html** – Assessment template that loads exported configurations for review.
+- **patient-flow-simulator.html** – Interactive prototype that models patient arrivals, area capacity, wait times, and queue-driven bottlenecks for hospital planning exercises.
 
  codex/propose-deployment-considerations-for-sct-tools-z8pu9e
 
