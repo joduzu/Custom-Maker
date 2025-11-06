@@ -2,7 +2,7 @@
 
 This repository contains three standalone HTML tools:
 
-- **index.html** – Landing page for the toolkit.
+- **index.html** – Interactive hospital patient flow simulator with configurable scenarios, throughput analytics, and bottleneck detection.
 - **maker.html** – Configuration maker used to author SCT deployment modality guidance and export `config.json` files.
 - **template.html** – Assessment template that loads exported configurations for review.
 
