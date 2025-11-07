@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hospital Patient Flow Simulator</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <style>
+        :root {
+            --critical: #d9534f;
+            --urgent: #f0ad4e;
+            --stable: #5cb85c;
+        }
+        body {
+            background: linear-gradient(135deg, #0f172a, #1f2937);
+            min-height: 100vh;
+            font-family: "Inter", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: #111827;
+        }
+        .app-shell {
+            max-width: 1200px;
+            margin: 40px auto;
+            background: #f9fafb;
+            border-radius: 24px;
+            box-shadow: 0 25px 80px rgba(15, 23, 42, 0.35);
+            overflow: hidden;
+        }
+        .app-header {
+            padding: 40px 40px 24px;
+            background: radial-gradient(circle at top left, #38bdf8, #6366f1 55%, #7c3aed 100%);
+            color: white;
+        }
+        .app-header h1 {
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+        .badge-critical {
+            background: rgba(217, 83, 79, 0.15);
+            color: #7f1d1d;
+        }
+        .badge-urgent {
+            background: rgba(240, 173, 78, 0.2);
+            color: #78350f;
+        }
+        .badge-stable {
+            background: rgba(92, 184, 92, 0.2);
+            color: #14532d;
+        }
+        .content-body {
+            padding: 32px 40px 48px;
+        }
+        .table thead th {
+            background: #e5e7eb;
+            border-bottom: none;
+            font-weight: 600;
+        }
+        .table tbody td {
+            vertical-align: middle;
+        }
+        .card-lift {
+            border-radius: 18px;
+            box-shadow: 0 15px 45px rgba(15, 23, 42, 0.12);
+            border: none;
+        }
+        .results-panel {
+            display: none;
+            margin-top: 30px;
+        }
+        .scenario-chip {
+            border-radius: 999px;
+            padding: 8px 16px;
+            background: rgba(15, 23, 42, 0.05);
+            font-size: 0.95rem;
+            margin-right: 12px;
+        }
+        .area-order-controls button {
+            width: 38px;
+            height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .queue-indicator {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .mini-chart {
+            display: flex;
+            gap: 6px;
+            align-items: flex-end;
+            height: 44px;
+            margin-top: 12px;
+        }
+        .mini-bar {
+            flex: 1;
+            background: linear-gradient(180deg, rgba(99, 102, 241, 0.85), rgba(14, 165, 233, 0.8));
+            border-radius: 6px 6px 0 0;
+        }
+        .small-text {
+            font-size: 0.85rem;
+            color: #4b5563;
+        }
+        @media (max-width: 992px) {
+            .app-shell {
+                margin: 16px;
+            }
+            .app-header,
+            .content-body {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="app-shell">
+        <header class="app-header">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <h1 class="h2 mb-1"><i class="fas fa-hospital-user me-2"></i>Patient Flow Scenario Lab</h1>
+                    <p class="mb-0 opacity-75">
+                        Prototype simulator to explore hospital area capacity, patient mix, and bottleneck risk in real time.
+                    </p>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="scenario-chip"><span class="queue-indicator" style="background: var(--critical);"></span>Critical</span>
+                    <span class="scenario-chip"><span class="queue-indicator" style="background: var(--urgent);"></span>Urgent</span>
+                    <span class="scenario-chip"><span class="queue-indicator" style="background: var(--stable);"></span>Stable</span>
+                </div>
+            </div>
+        </header>
+        <section class="content-body">
+            <div class="row g-4">
+                <div class="col-lg-4">
+                    <div class="card card-lift h-100">
+                        <div class="card-body">
+                            <h2 class="h5 mb-3"><i class="fas fa-clipboard-list me-2 text-primary"></i>Scenario Controls</h2>
+                            <div class="mb-3">
+                                <label class="form-label">Simulation Duration (minutes)</label>
+                                <input type="number" id="duration" class="form-control" min="30" step="30" value="480" />
+                                <div class="form-text">Typical planning horizon: 8-12 hours.</div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label">Arrival Rates (patients/hour)</label>
+                                <div class="row g-2 align-items-center">
+                                    <div class="col-4">
+                                        <span class="badge badge-critical w-100">Critical</span>
+                                        <input type="number" id="arrival-critical" class="form-control mt-1" min="0" step="0.5" value="3" />
+                                    </div>
+                                    <div class="col-4">
+                                        <span class="badge badge-urgent w-100">Urgent</span>
+                                        <input type="number" id="arrival-urgent" class="form-control mt-1" min="0" step="0.5" value="6" />
+                                    </div>
+                                    <div class="col-4">
+                                        <span class="badge badge-stable w-100">Stable</span>
+                                        <input type="number" id="arrival-stable" class="form-control mt-1" min="0" step="0.5" value="8" />
+                                    </div>
+                                </div>
+                                <div class="form-text">Poisson arrivals sampled each minute.</div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label">Staff Availability Modifier</label>
+                                <select id="staff-modifier" class="form-select">
+                                    <option value="0">Optimal staffing (baseline)</option>
+                                    <option value="0.15">Moderate shortage (+15% processing time)</option>
+                                    <option value="0.35">Severe shortage (+35% processing time)</option>
+                                </select>
+                            </div>
+                            <div class="mb-4">
+                                <label class="form-label">Equipment Reliability</label>
+                                <select id="equipment-modifier" class="form-select">
+                                    <option value="0">All equipment available</option>
+                                    <option value="0.1">Minor outages (+10% processing time)</option>
+                                    <option value="0.25">Major outages (+25% processing time)</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary w-100" id="run-simulation">
+                                <i class="fas fa-play me-2"></i>Run Simulation
+                            </button>
+                            <div class="alert alert-info mt-3 small-text" role="status">
+                                Results include throughput, average waits, max queue depth, and congestion alerts.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-8">
+                    <div class="card card-lift">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+                                <div>
+                                    <h2 class="h5 mb-1"><i class="fas fa-diagram-project me-2 text-primary"></i>Care Pathway Builder</h2>
+                                    <p class="small-text mb-0">Configure areas, capacities, and which patient cohorts flow through each stage.</p>
+                                </div>
+                                <button class="btn btn-outline-primary" id="add-area">
+                                    <i class="fas fa-plus me-2"></i>Add Area
+                                </button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table align-middle" id="areas-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Area</th>
+                                            <th scope="col" class="text-center">Capacity</th>
+                                            <th scope="col" class="text-center">Process (min)</th>
+                                            <th scope="col" class="text-center">Critical</th>
+                                            <th scope="col" class="text-center">Urgent</th>
+                                            <th scope="col" class="text-center">Stable</th>
+                                            <th scope="col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="alert alert-light small-text" id="pathway-hint">
+                                Define at least one area per cohort. Areas are processed in the order shown.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="results-panel" id="results">
+                <hr class="my-5" />
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                    <h2 class="h4 mb-0">Simulation Insights</h2>
+                    <span class="text-muted small-text" id="run-summary"></span>
+                </div>
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="card card-lift h-100">
+                            <div class="card-body">
+                                <h3 class="h6 text-uppercase text-muted">Throughput &amp; Waits</h3>
+                                <div id="summary-metrics" class="mt-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card card-lift h-100">
+                            <div class="card-body">
+                                <h3 class="h6 text-uppercase text-muted">Area Performance</h3>
+                                <div id="area-metrics" class="mt-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="card card-lift">
+                            <div class="card-body">
+                                <h3 class="h6 text-uppercase text-muted">Alerts &amp; Bottlenecks</h3>
+                                <ul id="alerts" class="list-group list-group-flush"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const patientTypes = {
+            critical: { key: "critical", label: "Critical", color: "var(--critical)", serviceFactor: 1.25 },
+            urgent: { key: "urgent", label: "Urgent", color: "var(--urgent)", serviceFactor: 1.0 },
+            stable: { key: "stable", label: "Stable", color: "var(--stable)", serviceFactor: 0.85 }
+        };
+
+        const defaultAreas = [
+            { name: "Emergency Triage", capacity: 6, process: 20, cohorts: { critical: true, urgent: true, stable: true } },
+            { name: "Resuscitation", capacity: 4, process: 45, cohorts: { critical: true, urgent: false, stable: false } },
+            { name: "Imaging", capacity: 5, process: 30, cohorts: { critical: true, urgent: true, stable: true } },
+            { name: "Observation", capacity: 12, process: 180, cohorts: { critical: true, urgent: true, stable: true } },
+            { name: "Inpatient Units", capacity: 16, process: 480, cohorts: { critical: true, urgent: true, stable: true } }
+        ];
+
+        const tableBody = document.querySelector("#areas-table tbody");
+        const resultsPanel = document.getElementById("results");
+
+        function syncAreasFromDOM() {
+            const rows = Array.from(tableBody.querySelectorAll("tr"));
+            rows.forEach((row, index) => {
+                const area = defaultAreas[index];
+                if (!area) return;
+                const inputs = row.querySelectorAll("input");
+                area.name = inputs[0].value.trim() || area.name;
+                area.capacity = Math.max(1, Number(inputs[1].value));
+                area.process = Math.max(1, Number(inputs[2].value));
+                Object.values(patientTypes).forEach((type, idx) => {
+                    area.cohorts[type.key] = inputs[3 + idx].checked;
+                });
+            });
+        }
+
+        function renderAreas() {
+            tableBody.innerHTML = "";
+            const fragment = document.createDocumentFragment();
+            defaultAreas.forEach((area, index) => {
+                const row = document.createElement("tr");
+                row.dataset.index = index;
+                row.innerHTML = `
+                    <td>
+                        <input type="text" class="form-control" value="${area.name}" aria-label="Area name" />
+                    </td>
+                    <td class="text-center">
+                        <input type="number" class="form-control text-center" min="1" value="${area.capacity}" aria-label="Capacity" />
+                    </td>
+                    <td class="text-center">
+                        <input type="number" class="form-control text-center" min="1" value="${area.process}" aria-label="Process time" />
+                    </td>
+                    ${Object.values(patientTypes)
+                        .map(
+                            (type) => `
+                            <td class="text-center">
+                                <div class="form-check form-switch d-flex justify-content-center">
+                                    <input class="form-check-input" type="checkbox" ${
+                                        area.cohorts[type.key] ? "checked" : ""
+                                    } aria-label="${type.label} enabled" />
+                                </div>
+                            </td>`
+                        )
+                        .join("")}
+                    <td>
+                        <div class="d-flex gap-2 area-order-controls">
+                            <button class="btn btn-outline-secondary btn-sm" data-action="up" title="Move up">
+                                <i class="fas fa-arrow-up"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" data-action="down" title="Move down">
+                                <i class="fas fa-arrow-down"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" data-action="delete" title="Remove">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                fragment.appendChild(row);
+            });
+            tableBody.appendChild(fragment);
+        }
+
+        function collectAreas() {
+            const rows = Array.from(tableBody.querySelectorAll("tr"));
+            return rows
+                .map((row) => {
+                    const inputs = row.querySelectorAll("input");
+                    const name = inputs[0].value.trim() || "Untitled Area";
+                    const capacity = Math.max(1, Number(inputs[1].value));
+                    const process = Math.max(1, Number(inputs[2].value));
+                    const cohorts = {};
+                    Object.values(patientTypes).forEach((type, idx) => {
+                        const checkbox = inputs[3 + idx];
+                        cohorts[type.key] = checkbox.checked;
+                    });
+                    return { name, capacity, process, cohorts };
+                })
+                .filter((area) => Object.values(area.cohorts).some(Boolean));
+        }
+
+        function poissonSample(lambda) {
+            if (lambda <= 0) return 0;
+            const L = Math.exp(-lambda);
+            let k = 0;
+            let p = 1;
+            do {
+                k++;
+                p *= Math.random();
+            } while (p > L);
+            return k - 1;
+        }
+
+        function runSimulation() {
+            const areas = collectAreas();
+            if (areas.length === 0) {
+                alert("Configure at least one active area before running the simulation.");
+                return;
+            }
+
+            const duration = Math.max(30, Number(document.getElementById("duration").value));
+            const arrivalRates = {
+                critical: Math.max(0, Number(document.getElementById("arrival-critical").value)),
+                urgent: Math.max(0, Number(document.getElementById("arrival-urgent").value)),
+                stable: Math.max(0, Number(document.getElementById("arrival-stable").value))
+            };
+            const missingPaths = Object.values(patientTypes)
+                .filter((type) => arrivalRates[type.key] > 0 && !areas.some((area) => area.cohorts[type.key]))
+                .map((type) => type.label);
+            if (missingPaths.length > 0) {
+                alert(`Add at least one area for: ${missingPaths.join(", ")}`);
+                return;
+            }
+            const staffMod = Number(document.getElementById("staff-modifier").value);
+            const equipmentMod = Number(document.getElementById("equipment-modifier").value);
+            const globalModifier = 1 + staffMod + equipmentMod;
+
+            const stats = {
+                patients: [],
+                byType: {
+                    critical: { count: 0, completed: 0, totalLOS: 0 },
+                    urgent: { count: 0, completed: 0, totalLOS: 0 },
+                    stable: { count: 0, completed: 0, totalLOS: 0 }
+                },
+                areas: areas.map((area) => ({
+                    name: area.name,
+                    waitTime: 0,
+                    serviced: 0,
+                    queueMax: 0,
+                    queueSamples: [],
+                    waitSamples: [],
+                    capacity: area.capacity
+                })),
+                alerts: []
+            };
+
+            const areaState = areas.map((area) => ({
+                queue: [],
+                active: [],
+                process: area.process,
+                capacity: area.capacity
+            }));
+
+            let patientId = 0;
+
+            function enqueuePatient(patient, areaIdx, minute) {
+                patient.currentIndex = areaIdx;
+                patient.queueEntered = minute;
+                areaState[areaIdx].queue.push(patient);
+                stats.areas[areaIdx].queueMax = Math.max(
+                    stats.areas[areaIdx].queueMax,
+                    areaState[areaIdx].queue.length
+                );
+            }
+
+            for (let minute = 0; minute < duration; minute++) {
+                Object.values(patientTypes).forEach((type) => {
+                    const arrivalsThisMinute = poissonSample(arrivalRates[type.key] / 60);
+                    for (let i = 0; i < arrivalsThisMinute; i++) {
+                        const path = areas
+                            .map((area, index) => ({ area, index }))
+                            .filter(({ area }) => area.cohorts[type.key])
+                            .map(({ index }) => index);
+                        if (path.length === 0) continue;
+                        const patient = {
+                            id: ++patientId,
+                            type: type.key,
+                            path,
+                            pathStep: 0,
+                            currentIndex: path[0],
+                            queueEntered: minute,
+                            inService: false,
+                            serviceRemaining: 0,
+                            arrivalMinute: minute,
+                            departureMinute: null
+                        };
+                        stats.byType[type.key].count++;
+                        enqueuePatient(patient, path[0], minute);
+                    }
+                });
+
+                areas.forEach((area, idx) => {
+                    const state = areaState[idx];
+                    const areaStats = stats.areas[idx];
+
+                    // Update active patients
+                    const stillActive = [];
+                    state.active.forEach((patient) => {
+                        patient.serviceRemaining -= 1;
+                        if (patient.serviceRemaining <= 0) {
+                            const path = patient.path;
+                            patient.pathStep++;
+                            const nextIdx = path[patient.pathStep];
+                            if (nextIdx !== undefined) {
+                                enqueuePatient(patient, nextIdx, minute);
+                            } else {
+                                patient.departureMinute = minute;
+                                stats.byType[patient.type].completed++;
+                                stats.byType[patient.type].totalLOS += minute - patient.arrivalMinute;
+                            }
+                        } else {
+                            stillActive.push(patient);
+                        }
+                    });
+                    state.active = stillActive;
+
+                    // Move patients from queue into service
+                    if (state.queue.length > 0) {
+                        const availableSlots = Math.max(0, state.capacity - state.active.length);
+                        if (availableSlots > 0) {
+                            const entering = state.queue.splice(0, availableSlots);
+                            entering.forEach((patient) => {
+                                const wait = minute - patient.queueEntered;
+                                stats.areas[idx].waitTime += wait;
+                                stats.areas[idx].waitSamples.push(wait);
+                                patient.inService = true;
+                                const type = patientTypes[patient.type];
+                                const severityModifier = type.serviceFactor;
+                                patient.serviceRemaining = Math.ceil(area.process * severityModifier * globalModifier);
+                                state.active.push(patient);
+                                stats.areas[idx].serviced++;
+                            });
+                        }
+                    }
+
+                    // capture queue sample for average length
+                    areaStats.queueSamples.push(state.queue.length);
+                });
+            }
+
+            // Compose results
+            displayResults(stats, duration);
+        }
+
+        function displayResults(stats, duration) {
+            const runSummary = document.getElementById("run-summary");
+            const summaryMetrics = document.getElementById("summary-metrics");
+            const areaMetrics = document.getElementById("area-metrics");
+            const alertsList = document.getElementById("alerts");
+
+            runSummary.textContent = `Simulated ${duration} minutes | ${stats.byType.critical.count + stats.byType.urgent.count + stats.byType.stable.count} patients generated.`;
+
+            summaryMetrics.innerHTML = "";
+            Object.values(patientTypes).forEach((type) => {
+                const data = stats.byType[type.key];
+                const completionRate = data.count === 0 ? 0 : (data.completed / data.count) * 100;
+                const avgLos = data.completed === 0 ? 0 : data.totalLOS / data.completed;
+                const card = document.createElement("div");
+                card.className = "border rounded-4 p-3 mb-3";
+                card.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="h6 mb-1">${type.label}</h4>
+                            <div class="small-text">Arrivals: <strong>${data.count}</strong> · Completed: <strong>${data.completed}</strong></div>
+                        </div>
+                        <span class="badge" style="background:${type.color};color:#0f172a;">${completionRate.toFixed(0)}% throughput</span>
+                    </div>
+                    <div class="mt-2 small-text">Average length of stay: <strong>${avgLos.toFixed(1)}</strong> minutes</div>
+                `;
+                summaryMetrics.appendChild(card);
+            });
+
+            areaMetrics.innerHTML = "";
+            stats.areas.forEach((area) => {
+                const avgWait = area.waitSamples.length === 0 ? 0 : area.waitTime / area.waitSamples.length;
+                const avgQueue = area.queueSamples.length === 0 ? 0 : area.queueSamples.reduce((a, b) => a + b, 0) / area.queueSamples.length;
+                const block = document.createElement("div");
+                block.className = "border rounded-4 p-3 mb-3";
+                const queueRatio = area.capacity === 0 ? 0 : avgQueue / area.capacity;
+                block.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h4 class="h6 mb-1">${area.name}</h4>
+                            <div class="small-text">Patients served: <strong>${area.serviced}</strong></div>
+                        </div>
+                        <span class="badge bg-dark-subtle text-dark">Max queue ${area.queueMax}</span>
+                    </div>
+                    <div class="mt-2 small-text">Average wait: <strong>${avgWait.toFixed(1)}</strong> minutes</div>
+                    <div class="mt-1 small-text">Average queue: <strong>${avgQueue.toFixed(1)}</strong> patients</div>
+                    <div class="mini-chart">
+                        ${area.queueSamples.slice(-12).map((value) => `<span class="mini-bar" style="height:${Math.min(40, value * 8) + 4}px"></span>`).join("")}
+                    </div>
+                `;
+                areaMetrics.appendChild(block);
+
+                if (avgWait > 30) {
+                    stats.alerts.push({
+                        severity: "warning",
+                        message: `${area.name} average wait ${avgWait.toFixed(1)} minutes exceeds 30-minute guideline.`
+                    });
+                }
+                if (queueRatio > 0.6) {
+                    stats.alerts.push({
+                        severity: "danger",
+                        message: `${area.name} shows persistent queues (max ${area.queueMax}) relative to capacity.`
+                    });
+                }
+            });
+
+            alertsList.innerHTML = "";
+            if (stats.alerts.length === 0) {
+                const item = document.createElement("li");
+                item.className = "list-group-item d-flex align-items-center gap-3 small-text";
+                item.innerHTML = `<i class="fas fa-circle-check text-success"></i> No bottlenecks detected for configured thresholds.`;
+                alertsList.appendChild(item);
+            } else {
+                stats.alerts.forEach((alert) => {
+                    const item = document.createElement("li");
+                    const icon = alert.severity === "danger" ? "fa-triangle-exclamation text-danger" : "fa-circle-exclamation text-warning";
+                    item.className = "list-group-item d-flex align-items-center gap-3 small-text";
+                    item.innerHTML = `<i class="fas ${icon}"></i>${alert.message}`;
+                    alertsList.appendChild(item);
+                });
+            }
+
+            resultsPanel.style.display = "block";
+            resultsPanel.scrollIntoView({ behavior: "smooth" });
+        }
+
+        document.getElementById("add-area").addEventListener("click", () => {
+            syncAreasFromDOM();
+            defaultAreas.push({
+                name: "New Area",
+                capacity: 4,
+                process: 60,
+                cohorts: { critical: false, urgent: true, stable: true }
+            });
+            renderAreas();
+        });
+
+        tableBody.addEventListener("click", (event) => {
+            const button = event.target.closest("button[data-action]");
+            if (!button) return;
+            const row = button.closest("tr");
+            const index = Number(row.dataset.index);
+            const action = button.dataset.action;
+            syncAreasFromDOM();
+            if (action === "delete") {
+                defaultAreas.splice(index, 1);
+            } else if (action === "up" && index > 0) {
+                const [moved] = defaultAreas.splice(index, 1);
+                defaultAreas.splice(index - 1, 0, moved);
+            } else if (action === "down" && index < defaultAreas.length - 1) {
+                const [moved] = defaultAreas.splice(index, 1);
+                defaultAreas.splice(index + 1, 0, moved);
+            }
+            renderAreas();
+        });
+
+        document.getElementById("run-simulation").addEventListener("click", runSimulation);
+
+        renderAreas();
+    </script>
+</body>
+</html>
