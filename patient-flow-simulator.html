@@ -143,6 +143,15 @@
                                 <input type="number" id="duration" class="form-control" min="30" step="30" value="480" />
                                 <div class="form-text">Typical planning horizon: 8-12 hours.</div>
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label">EMT Deployment Type</label>
+                                <select id="emt-type" class="form-select">
+                                    <option value="T1">Type 1 · Outpatient / First Aid</option>
+                                    <option value="T2">Type 2 · Inpatient / Surgery</option>
+                                    <option value="T3">Type 3 · Referral / Specialized Care</option>
+                                </select>
+                                <div class="form-text">Loads WHO EMT baseline capacities, staffing, and processing time.</div>
+                            </div>
                             <div class="mb-4">
                                 <label class="form-label">Arrival Rates (patients/hour)</label>
                                 <div class="row g-2 align-items-center">
@@ -203,8 +212,9 @@
                                     <thead>
                                         <tr>
                                             <th scope="col">Area</th>
-                                            <th scope="col" class="text-center">Capacity</th>
-                                            <th scope="col" class="text-center">Process (min)</th>
+                                            <th scope="col" class="text-center">Capacity<br /><span class="small-text">(beds / chairs / stations)</span></th>
+                                            <th scope="col" class="text-center">Allocated Staff</th>
+                                            <th scope="col" class="text-center">Process (ticks)</th>
                                             <th scope="col" class="text-center">Critical</th>
                                             <th scope="col" class="text-center">Urgent</th>
                                             <th scope="col" class="text-center">Stable</th>
@@ -266,16 +276,66 @@
             stable: { key: "stable", label: "Stable", color: "var(--stable)", serviceFactor: 0.85 }
         };
 
-        const defaultAreas = [
-            { name: "Emergency Triage", capacity: 6, process: 20, cohorts: { critical: true, urgent: true, stable: true } },
-            { name: "Resuscitation", capacity: 4, process: 45, cohorts: { critical: true, urgent: false, stable: false } },
-            { name: "Imaging", capacity: 5, process: 30, cohorts: { critical: true, urgent: true, stable: true } },
-            { name: "Observation", capacity: 12, process: 180, cohorts: { critical: true, urgent: true, stable: true } },
-            { name: "Inpatient Units", capacity: 16, process: 480, cohorts: { critical: true, urgent: true, stable: true } }
+        const clinicalAreasCatalog = [
+            { name: "Waiting area", T1: { capacity: 15, allocatedStaff: 1, processTime: 2 }, T2: { capacity: 30, allocatedStaff: 2, processTime: 2 }, T3: { capacity: 40, allocatedStaff: 2, processTime: 2 } },
+            { name: "Screening", T1: { capacity: 1, allocatedStaff: 1, processTime: 2 }, T2: { capacity: 2, allocatedStaff: 2, processTime: 2 }, T3: { capacity: 3, allocatedStaff: 2, processTime: 2 } },
+            { name: "Triage", T1: { capacity: 2, allocatedStaff: 2, processTime: 3 }, T2: { capacity: 3, allocatedStaff: 3, processTime: 3 }, T3: { capacity: 4, allocatedStaff: 4, processTime: 3 } },
+            { name: "Outpatient ward", T1: { capacity: 3, allocatedStaff: 3, processTime: 4 }, T2: { capacity: 5, allocatedStaff: 5, processTime: 4 }, T3: { capacity: 6, allocatedStaff: 6, processTime: 4 } },
+            { name: "Inpatient ward", T1: { capacity: 0, allocatedStaff: 0, processTime: 0 }, T2: { capacity: 30, allocatedStaff: 6, processTime: 15 }, T3: { capacity: 60, allocatedStaff: 10, processTime: 15 } },
+            { name: "Emergency room", T1: { capacity: 2, allocatedStaff: 2, processTime: 6 }, T2: { capacity: 6, allocatedStaff: 4, processTime: 6 }, T3: { capacity: 10, allocatedStaff: 7, processTime: 6 } },
+            { name: "Resuscitation", T1: { capacity: 1, allocatedStaff: 2, processTime: 8 }, T2: { capacity: 2, allocatedStaff: 4, processTime: 8 }, T3: { capacity: 3, allocatedStaff: 6, processTime: 8 } },
+            { name: "Operation Theatre", T1: { capacity: 0, allocatedStaff: 0, processTime: 0 }, T2: { capacity: 1, allocatedStaff: 6, processTime: 20 }, T3: { capacity: 3, allocatedStaff: 12, processTime: 20 } },
+            { name: "Delivery room", T1: { capacity: 1, allocatedStaff: 1, processTime: 12 }, T2: { capacity: 1, allocatedStaff: 3, processTime: 12 }, T3: { capacity: 2, allocatedStaff: 4, processTime: 12 } },
+            { name: "Intensive Care Unit", T1: { capacity: 0, allocatedStaff: 0, processTime: 0 }, T2: { capacity: 2, allocatedStaff: 4, processTime: 20 }, T3: { capacity: 8, allocatedStaff: 10, processTime: 20 } },
+            { name: "Pharmacy", T1: { capacity: 1, allocatedStaff: 1, processTime: 6 }, T2: { capacity: 2, allocatedStaff: 2, processTime: 6 }, T3: { capacity: 3, allocatedStaff: 3, processTime: 6 } },
+            { name: "Wound care area", T1: { capacity: 1, allocatedStaff: 1, processTime: 6 }, T2: { capacity: 2, allocatedStaff: 2, processTime: 6 }, T3: { capacity: 3, allocatedStaff: 3, processTime: 6 } },
+            { name: "Laboratory", T1: { capacity: 1, allocatedStaff: 1, processTime: 6 }, T2: { capacity: 2, allocatedStaff: 2, processTime: 6 }, T3: { capacity: 3, allocatedStaff: 3, processTime: 6 } },
+            { name: "Imaging", T1: { capacity: 1, allocatedStaff: 1, processTime: 8 }, T2: { capacity: 2, allocatedStaff: 2, processTime: 8 }, T3: { capacity: 3, allocatedStaff: 3, processTime: 8 } },
+            { name: "Pre-Post operatory", T1: { capacity: 0, allocatedStaff: 0, processTime: 0 }, T2: { capacity: 4, allocatedStaff: 3, processTime: 10 }, T3: { capacity: 6, allocatedStaff: 4, processTime: 10 } },
+            { name: "Isolation rooms", T1: { capacity: 1, allocatedStaff: 1, processTime: 15 }, T2: { capacity: 4, allocatedStaff: 2, processTime: 15 }, T3: { capacity: 6, allocatedStaff: 3, processTime: 15 } },
+            { name: "Paediatric", T1: { capacity: 0, allocatedStaff: 0, processTime: 0 }, T2: { capacity: 6, allocatedStaff: 3, processTime: 12 }, T3: { capacity: 10, allocatedStaff: 5, processTime: 12 } },
+            { name: "Plastering", T1: { capacity: 1, allocatedStaff: 1, processTime: 6 }, T2: { capacity: 1, allocatedStaff: 1, processTime: 6 }, T3: { capacity: 1, allocatedStaff: 1, processTime: 6 } },
+            { name: "Testing area", T1: { capacity: 2, allocatedStaff: 1, processTime: 4 }, T2: { capacity: 3, allocatedStaff: 2, processTime: 4 }, T3: { capacity: 4, allocatedStaff: 2, processTime: 4 } },
+            { name: "Rehabilitation area", T1: { capacity: 0, allocatedStaff: 0, processTime: 0 }, T2: { capacity: 2, allocatedStaff: 1, processTime: 8 }, T3: { capacity: 3, allocatedStaff: 2, processTime: 8 } },
+            { name: "Maternity", T1: { capacity: 1, allocatedStaff: 1, processTime: 10 }, T2: { capacity: 2, allocatedStaff: 2, processTime: 10 }, T3: { capacity: 4, allocatedStaff: 3, processTime: 10 } },
+            { name: "Child friendly space", T1: { capacity: 4, allocatedStaff: 1, processTime: 15 }, T2: { capacity: 6, allocatedStaff: 1, processTime: 15 }, T3: { capacity: 8, allocatedStaff: 1, processTime: 15 } },
+            { name: "Breastfeeding area", T1: { capacity: 1, allocatedStaff: 0, processTime: 15 }, T2: { capacity: 2, allocatedStaff: 0, processTime: 15 }, T3: { capacity: 2, allocatedStaff: 0, processTime: 15 } },
+            { name: "Psychosocial care area", T1: { capacity: 2, allocatedStaff: 1, processTime: 12 }, T2: { capacity: 3, allocatedStaff: 2, processTime: 12 }, T3: { capacity: 4, allocatedStaff: 2, processTime: 12 } },
+            { name: "Nurse handover area", T1: { capacity: 0, allocatedStaff: 1, processTime: 5 }, T2: { capacity: 0, allocatedStaff: 2, processTime: 5 }, T3: { capacity: 0, allocatedStaff: 3, processTime: 5 } },
+            { name: "Ambulance bay", T1: { capacity: 1, allocatedStaff: 0, processTime: 4 }, T2: { capacity: 2, allocatedStaff: 0, processTime: 4 }, T3: { capacity: 3, allocatedStaff: 0, processTime: 4 } }
         ];
+
+        const defaultAreas = [];
 
         const tableBody = document.querySelector("#areas-table tbody");
         const resultsPanel = document.getElementById("results");
+        const typeSelector = document.getElementById("emt-type");
+
+        let currentType = "T1";
+
+        function loadAreasForType(typeKey) {
+            currentType = typeKey;
+            if (typeSelector.value !== typeKey) {
+                typeSelector.value = typeKey;
+            }
+            defaultAreas.length = 0;
+            clinicalAreasCatalog.forEach((area) => {
+                const config = area[typeKey];
+                const isActive = config.capacity > 0 && config.processTime > 0;
+                defaultAreas.push({
+                    name: area.name,
+                    capacity: config.capacity,
+                    staff: config.allocatedStaff,
+                    process: config.processTime,
+                    cohorts: {
+                        critical: isActive,
+                        urgent: isActive,
+                        stable: isActive
+                    }
+                });
+            });
+            renderAreas();
+        }
 
         function syncAreasFromDOM() {
             const rows = Array.from(tableBody.querySelectorAll("tr"));
@@ -284,10 +344,14 @@
                 if (!area) return;
                 const inputs = row.querySelectorAll("input");
                 area.name = inputs[0].value.trim() || area.name;
-                area.capacity = Math.max(1, Number(inputs[1].value));
-                area.process = Math.max(1, Number(inputs[2].value));
+                const capacityValue = Number(inputs[1].value);
+                area.capacity = Number.isFinite(capacityValue) ? Math.max(0, capacityValue) : 0;
+                const staffValue = Number(inputs[2].value);
+                area.staff = Number.isFinite(staffValue) ? Math.max(0, staffValue) : 0;
+                const processValue = Number(inputs[3].value);
+                area.process = Number.isFinite(processValue) ? Math.max(0, processValue) : 0;
                 Object.values(patientTypes).forEach((type, idx) => {
-                    area.cohorts[type.key] = inputs[3 + idx].checked;
+                    area.cohorts[type.key] = inputs[4 + idx].checked;
                 });
             });
         }
@@ -298,15 +362,21 @@
             defaultAreas.forEach((area, index) => {
                 const row = document.createElement("tr");
                 row.dataset.index = index;
+                if (!Number.isFinite(area.staff)) {
+                    area.staff = 0;
+                }
                 row.innerHTML = `
                     <td>
                         <input type="text" class="form-control" value="${area.name}" aria-label="Area name" />
                     </td>
                     <td class="text-center">
-                        <input type="number" class="form-control text-center" min="1" value="${area.capacity}" aria-label="Capacity" />
+                        <input type="number" class="form-control text-center" min="0" value="${area.capacity}" aria-label="Capacity" />
                     </td>
                     <td class="text-center">
-                        <input type="number" class="form-control text-center" min="1" value="${area.process}" aria-label="Process time" />
+                        <input type="number" class="form-control text-center" min="0" value="${area.staff}" aria-label="Allocated staff" />
+                    </td>
+                    <td class="text-center">
+                        <input type="number" class="form-control text-center" min="0" value="${area.process}" aria-label="Process time" />
                     </td>
                     ${Object.values(patientTypes)
                         .map(
@@ -345,16 +415,24 @@
                 .map((row) => {
                     const inputs = row.querySelectorAll("input");
                     const name = inputs[0].value.trim() || "Untitled Area";
-                    const capacity = Math.max(1, Number(inputs[1].value));
-                    const process = Math.max(1, Number(inputs[2].value));
+                    const capacityRaw = Number(inputs[1].value);
+                    const staffRaw = Number(inputs[2].value);
+                    const processRaw = Number(inputs[3].value);
+                    const capacity = Number.isFinite(capacityRaw) ? Math.max(0, capacityRaw) : 0;
+                    const staff = Number.isFinite(staffRaw) ? Math.max(0, staffRaw) : 0;
+                    const process = Number.isFinite(processRaw) ? Math.max(0, processRaw) : 0;
                     const cohorts = {};
                     Object.values(patientTypes).forEach((type, idx) => {
-                        const checkbox = inputs[3 + idx];
+                        const checkbox = inputs[4 + idx];
                         cohorts[type.key] = checkbox.checked;
                     });
-                    return { name, capacity, process, cohorts };
+                    return { name, capacity, process, staff, cohorts };
                 })
-                .filter((area) => Object.values(area.cohorts).some(Boolean));
+                .filter((area) =>
+                    area.capacity > 0 &&
+                    area.process > 0 &&
+                    Object.values(area.cohorts).some(Boolean)
+                );
         }
 
         function poissonSample(lambda) {
@@ -393,6 +471,8 @@
             const equipmentMod = Number(document.getElementById("equipment-modifier").value);
             const globalModifier = 1 + staffMod + equipmentMod;
 
+            const typeLabel = typeSelector.options[typeSelector.selectedIndex]?.textContent || currentType;
+
             const stats = {
                 patients: [],
                 byType: {
@@ -407,7 +487,9 @@
                     queueMax: 0,
                     queueSamples: [],
                     waitSamples: [],
-                    capacity: area.capacity
+                    capacity: area.capacity,
+                    staff: area.staff,
+                    process: area.process
                 })),
                 alerts: []
             };
@@ -507,16 +589,16 @@
             }
 
             // Compose results
-            displayResults(stats, duration);
+            displayResults(stats, duration, typeLabel);
         }
 
-        function displayResults(stats, duration) {
+        function displayResults(stats, duration, typeLabel) {
             const runSummary = document.getElementById("run-summary");
             const summaryMetrics = document.getElementById("summary-metrics");
             const areaMetrics = document.getElementById("area-metrics");
             const alertsList = document.getElementById("alerts");
 
-            runSummary.textContent = `Simulated ${duration} minutes | ${stats.byType.critical.count + stats.byType.urgent.count + stats.byType.stable.count} patients generated.`;
+            runSummary.textContent = `Simulated ${duration} minutes · ${typeLabel} | ${stats.byType.critical.count + stats.byType.urgent.count + stats.byType.stable.count} patients generated.`;
 
             summaryMetrics.innerHTML = "";
             Object.values(patientTypes).forEach((type) => {
@@ -550,6 +632,7 @@
                         <div>
                             <h4 class="h6 mb-1">${area.name}</h4>
                             <div class="small-text">Patients served: <strong>${area.serviced}</strong></div>
+                            <div class="small-text">Minimum staff required: <strong>${area.staff}</strong> · Process time: <strong>${area.process}</strong> ticks</div>
                         </div>
                         <span class="badge bg-dark-subtle text-dark">Max queue ${area.queueMax}</span>
                     </div>
@@ -600,10 +683,15 @@
             defaultAreas.push({
                 name: "New Area",
                 capacity: 4,
+                staff: 2,
                 process: 60,
                 cohorts: { critical: false, urgent: true, stable: true }
             });
             renderAreas();
+        });
+
+        typeSelector.addEventListener("change", (event) => {
+            loadAreasForType(event.target.value);
         });
 
         tableBody.addEventListener("click", (event) => {
@@ -627,7 +715,7 @@
 
         document.getElementById("run-simulation").addEventListener("click", runSimulation);
 
-        renderAreas();
+        loadAreasForType(currentType);
     </script>
 </body>
 </html>
